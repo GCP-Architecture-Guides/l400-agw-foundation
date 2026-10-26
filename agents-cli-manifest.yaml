@@ -1,0 +1,43 @@
+# Master Topology Manifest for TrialShield POC Agent (Starter Lab)
+# Legacy v0.1 Monolithic Architecture (CISO Audit Target)
+name: "aegis-trialshield-lab"
+acli_version: "1.10.0"
+agent_directory: "app"
+region: "us-central1"
+base_template: "adk"
+language: "python"
+framework: "google-adk"
+
+create_params:
+  root_agent_name: "TrialShield_POC_Agent"
+  deployment_target: "agent_runtime"
+  session_type: "agent_platform_sessions"
+  cicd_runner: "skip"
+  is_a2a: true
+
+architecture:
+  experience_plane:
+    scope: "global"
+    app_id: "gemini-enterprise-demo_1789999455608"
+    app_name: "Gemini Enterprise Demo"
+    description: "Gemini Enterprise Experience UI hosting TrialShield POC Agent."
+  orchestration_and_storage_plane:
+    region: "us-central1"
+    description: "Monolithic agent runtime deployed in us-central1."
+
+agents:
+  TrialShield_POC_Agent:
+    name: "TrialShield POC Agent"
+    path: "legacy_mega_agent"
+    entrypoint: "poc_mega_agent.py"
+    runtime: "agent_runtime"
+    region: "us-central1"
+    authority_tier: "monolithic"
+    model: "gemini-3.7-flash"
+    registration:
+      target: "gemini-enterprise-app-hub"
+      app_name: "Gemini Enterprise Demo"
+      app_id: "gemini-enterprise-demo_1789999455608"
+      region: "us-central1"
+      experience_plane: "global"
+      publish_command: "agents-cli publish gemini --registration-type adk --display-name \"TrialShield POC Agent\" --gemini-app-id projects/679847132899/locations/global/collections/default_collection/engines/gemini-enterprise-demo_1789999455608"

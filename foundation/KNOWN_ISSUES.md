@@ -1,0 +1,1030 @@
+# Known Issues & Rollback Runbook
+
+> **Project:** `YOUR_PROJECT_ID` · **Foundation:** `mod-agw-foundation` · **Last Updated:** 2026-07-29
+
+This document is the complete, honest record of every bug encountered deploying
+the Agent Gateway foundation and the `chat-agent-v2` Reasoning Engine. Each issue
+is recorded chronologically, with root cause, all attempted fixes (including the
+ones that failed), the final resolution, and a rollback procedure.
+
+---
+
+## Summary
+
+| # | Issue | Severity | Status |
+|---|---|---|---|
+| 001 | Model Armor PI/Jailbreak false positive on `:streamQuery` responses | 🔴 Critical | ✅ Fixed |
+| 002 | ADK 1.31.1: `:query` endpoint not registered | 🟡 Medium | ✅ Resolved (by design) |
+| 003 | Pydantic v2: `GlobalGemini(model)` positional arg rejected | 🔴 Critical | ✅ Fixed |
+| 004 | `GlobalGemini._get_client_args()` is dead code in ADK 1.31.1 | 🟡 Medium | ✅ Fixed |
+| 005 | `GlobalGemini(api_client=global)` breaks egress PSC routing | 🔴 Critical | ✅ Fixed |
+| 006 | `after_model_callback` TypeError: `callback_context` kwarg mismatch | 🔴 Critical | ✅ Fixed |
+| 007 | OTEL exporter SSL crash kills RE async thread after first query | 🔴 Critical | ✅ Fixed |
+| 008 | Unpinned SDK versions: `agentplatform.Client` transport bypasses all patch interceptors | 🔴 Critical | ✅ Fixed |
+| 009 | Invalid agent name `chat-agent` — hyphens not allowed; ADK requires Python identifier | 🔴 Critical | ✅ Fixed |
+| 010 | `roles/modelarmor.inspector` does not exist — cannot grant gateway SA MA access via IAM | 🟡 Medium | ✅ Documented (not needed) |
+| 011 | Agent Gateway API hard limit: at most 1 `CONTENT_AUTHZ` policy per `CLIENT_TO_AGENT` ingress gateway | 🟡 Medium | ✅ Documented (platform limit) |
+| 012 | IAP egress: `fail_open=false + ENFORCED` blocks all RE outbound traffic | 🔴 Critical | ✅ Fixed — DRY_RUN deployed |
+| 013 | Agent Identity mTLS certs invalid (epoch timestamp) — IAP ENFORCED non-functional | 🟠 High | 🔴 Open — platform bug |
+
+---
+
+## Issue #001 — Model Armor PI/Jailbreak False Positive on Agent Responses
+
+**Status:** ✅ Fixed — `response_template_id` removed from authz extension  
+**Severity:** Critical — blocked every single agent response  
+**Discovered:** 2026-07-13  
+
+### Symptom
+
+Every call to `POST .../reasoningEngines/{id}:streamQuery` returned HTTP 403:
+```
+Model Armor: Response violates content security configurations.
+However, the operation was successful.
+```
+Note: "operation was successful" confirms the agent ran — the block was on the RESPONSE
+path, not the request path.
+
+### Root Cause
+
+The authz extension `acme-corp-ma-extension` was configured with the same Model Armor
+template for both request and response screening:
+
+```hcl
+model_armor_settings = [{
+  request_template_id  = ".../security-high"   # screens user input ✅
+  response_template_id = ".../security-high"   # screens agent output ❌
+}]
+```
+
+The Vertex AI RE platform wraps `:streamQuery` responses in gRPC-HTTP transcoding
+format before delivery. The response body contains HTTP metadata:
+
+```json
+[{"text":"{\"contentType\": \"application/json\", \"extensions\": [...]}"}]
+```
+
+The `security-high` template has `pi_and_jailbreak.filterEnforcement = ENABLED`.
+The PI/Jailbreak filter sees `contentType`/`extensions` JSON in the response body
+and flags it as a **prompt injection from model** — a false positive. This is
+platform-level behaviour that cannot be changed in agent code.
+
+Confirmed via Model Armor audit logs:
+```
+SANITIZE_MODEL_RESPONSE → filter=pi_and_jailbreak → MATCH_FOUND → BLOCK
+```
+
+### Attempted Fixes (all failed before final solution)
+
+| Attempt | Approach | Why It Failed |
+|---|---|---|
+| 1 | Set `pi_and_jailbreak.confidence_level = LOW` | `LOW` is not a valid enum value |
+| 2 | Set `filterEnforcement = DISABLED` on template | Org floor policy blocks — requires ENABLED on all templates |
+| 3 | Create a `security-responses` template without PI/Jailbreak | Org floor policy: ALL templates must have PI/Jailbreak ENABLED |
+| 4 | Override `GlobalGemini._get_client_args()` for REST transport | Dead code in ADK 1.31.1 — method is never called |
+| 5 | Override `GlobalGemini.api_client` → `Client(location="global")` | Breaks egress PSC (see Issue #005) |
+
+### Final Fix Applied
+
+Removed `response_template_id` entirely from the authz extension:
+
+```hcl
+# 03_security_and_gateways.tf
+model_armor_settings = [{
+  # INPUT only: PI/Jailbreak + SDP + RAI + malicious URIs on user prompts
+  request_template_id = ".../security-high"
+  # No response_template_id — model output safety via Gemini built-in harm filters
+}]
+```
+
+**Security rationale:** Gemini's built-in safety filters (RAI, harm categories) are
+always active at the model layer and cannot be bypassed by any client. Model Armor
+response screening only makes sense for plain-text responses — not gRPC-transcoded
+streaming frames that contain HTTP metadata the filter misidentifies as injection.
+
+### Rollback
+
+To restore response screening (if/when the platform changes its transcoding format):
+
+```bash
+# In 03_security_and_gateways.tf, add back to model_armor_settings:
+#   response_template_id = "projects/${var.project_id}/locations/${var.location}/templates/security-high"
+cd mod-agw-foundation-pub
+terraform apply -target=google_network_services_authz_extension.ma_extension -auto-approve
+```
+
+---
+
+## Issue #002 — ADK 1.31.1: `:query` Endpoint Not Registered
+
+**Status:** ✅ Resolved — use `:streamQuery` instead (by design)  
+**Severity:** Medium  
+
+### Symptom
+
+```
+POST .../reasoningEngines/{id}:query
+→ "Default method `query` not found. Available methods: [session management only]"
+```
+
+### Root Cause
+
+In ADK 1.31.1, `AdkApp` does NOT register `query()` or `stream_query()` as RE class
+methods. Only session management methods are registered. Inference goes through the
+ASGI `/stream_reasoning_engine` endpoint, exposed via `:streamQuery`.
+
+### Resolution
+
+Always use the session-based 2-step flow:
+```python
+# Step 1 — create session
+re.create_session(user_id="...")   # or POST :query with class_method=create_session
+
+# Step 2 — run inference
+for event in re.stream_query(message="...", user_id="...", session_id="..."):
+    ...
+```
+
+---
+
+## Issue #003 — Pydantic v2: `GlobalGemini(model)` Positional Arg Rejected
+
+**Status:** ✅ Fixed  
+**Severity:** Critical — caused RE startup failure  
+
+### Symptom
+
+```
+Error loading ASGI app factory:
+BaseModel.__init__() takes 1 positional argument but 2 were given
+```
+
+### Root Cause
+
+`BaseLlm` (parent of `Gemini`) is a Pydantic v2 `BaseModel`. Pydantic v2 requires
+keyword arguments for model initialization — positional args are rejected.
+
+### Fix
+
+```python
+# ❌ Before
+gateway_model = GlobalGemini(model)
+
+# ✅ After
+gateway_model = GlobalGemini(model=model)
+```
+
+File: [`lib/gateway_agent/agent.py`](lib/gateway_agent/agent.py)
+
+---
+
+## Issue #004 — `GlobalGemini._get_client_args()` Is Dead Code in ADK 1.31.1
+
+**Status:** ✅ Fixed  
+**Severity:** Medium — silently had no effect  
+
+### Symptom
+
+The `GlobalGemini` class in the `gateway-agent-sdk` skill overrides `_get_client_args()`
+to force `Client(location="global")`. This had no effect — REST transport was never used,
+and the model was still being called via gRPC.
+
+### Root Cause
+
+In ADK 1.31.1, `Gemini._get_client_args()` is **never called** by the base class.
+The actual API client is created by the `api_client` property. The `_get_client_args()`
+override was dead code from an older ADK version.
+
+### Fix
+
+Removed the `_get_client_args()` override. The `GlobalGemini` class was later simplified
+to a clean pass-through (see Issue #005).
+
+---
+
+## Issue #005 — `GlobalGemini(api_client=global)` Breaks Egress PSC Routing
+
+**Status:** ✅ Fixed  
+**Severity:** Critical — caused 0 events on all queries  
+
+### Symptom
+
+After fixing Issue #004 by overriding the `api_client` property with
+`Client(vertexai=True, location="global")`, all `stream_query` calls returned
+HTTP 200 but with 0 events and empty response body.
+
+### Root Cause
+
+`Client(vertexai=True, location="global")` points to the global Vertex AI endpoint:
+`aiplatform.googleapis.com` (no region prefix).
+
+The Agent Gateway **egress PSC** is a regional construct. It only routes traffic to:
+- `us-east1-aiplatform.googleapis.com` ✅ (via PSC network attachment)
+
+It does **NOT** route traffic to:
+- `aiplatform.googleapis.com` ❌ (global endpoint, different IP, no PSC path)
+
+When the agent tried to call Gemini via the global endpoint, the PSC silently dropped
+the connection, the model call timed out, and the ASGI server returned an empty response.
+
+**Key insight:** The original problem (global endpoint needed for Gemini 2.5+) was
+no longer true. `gemini-2.5-flash` IS available at the `us-east1` regional endpoint.
+Confirmed by Cloud Logging: `backend: GoogleLLMVariant.VERTEX_AI, stream: False` —
+model calls were succeeding via the regional endpoint once PSC routing was used.
+
+### Fix
+
+`GlobalGemini` was reverted to a no-op pass-through that inherits all `Gemini`
+defaults (including the regional endpoint derived from `GOOGLE_CLOUD_LOCATION=us-east1`):
+
+```python
+# lib/gateway_agent/global_gemini.py
+class GlobalGemini(Gemini):
+    """Pass-through wrapper — uses ADK default regional endpoint.
+    
+    The regional endpoint works with the Agent Gateway egress PSC.
+    gemini-2.5-flash is available at us-east1-aiplatform.googleapis.com.
+    """
+    pass
+```
+
+**Note for future:** If Gemini 4.x+ models require the global endpoint, the egress
+PSC must first be extended to route `aiplatform.googleapis.com` before re-enabling
+the `api_client` override. Do not restore the override without also updating the PSC.
+
+---
+
+## Issue #006 — `after_model_callback` TypeError: Wrong Parameter Names
+
+**Status:** ✅ Fixed  
+**Severity:** Critical — silently dropped all agent responses after model call  
+
+### Symptom
+
+Queries returned HTTP 200 with 0 events. Cloud Logging showed:
+
+```
+INFO:  Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI
+INFO:  Response received from the model.
+ERROR: TypeError: GatewayAgent.__init__.<locals>._chained_callback() got an
+       unexpected keyword argument 'callback_context'
+```
+
+The model was being called successfully. The error occurred in the
+`after_model_callback`, which caused the entire response to be dropped.
+
+### Root Cause
+
+ADK 1.31.1 changed the `after_model_callback` calling convention from positional
+to **keyword arguments**:
+
+```python
+# ADK 1.31.1 base_llm_flow.py — how callbacks are invoked:
+callback_response = callback(
+    callback_context=callback_context,   # ← keyword arg
+    llm_response=llm_response            # ← keyword arg
+)
+```
+
+Our `_chained_callback` in `GatewayAgent.__init__` used the old positional names:
+
+```python
+# ❌ Before (wrong parameter names)
+def _chained_callback(ctx: CallbackContext, response: LlmResponse):
+    emit_llm_usage_from_response(ctx, response)
+    if after_model_callback is not None:
+        return after_model_callback(ctx, response)
+```
+
+When ADK called `callback(callback_context=..., llm_response=...)`, Python matched
+`callback_context` as a keyword arg against a function that has no `callback_context`
+parameter — TypeError.
+
+### Fix
+
+```python
+# ✅ After — parameter names match ADK 1.31.1 calling convention
+def _chained_callback(
+    callback_context: CallbackContext, llm_response: LlmResponse
+) -> Optional[LlmResponse]:
+    emit_llm_usage_from_response(callback_context, llm_response)
+    if after_model_callback is not None:
+        return after_model_callback(
+            callback_context=callback_context, llm_response=llm_response
+        )
+    return None
+```
+
+File: [`lib/gateway_agent/agent.py`](lib/gateway_agent/agent.py)
+
+**Verification:** After this fix, `stream_query("What is 2+2?")` returned 1 event
+with `✅ ANSWER: 2+2 equals 4.`
+
+---
+
+## Issue #007 — Multi-Layer OTEL Failure: RE Queries Fail After N Successful Calls
+
+**Status:** ✅ Fixed — 5 env vars required (see Fix Applied below)  
+**Severity:** Critical — RE passes 0–3 queries then goes permanently silent  
+**Discovered:** 2026-07-13 | **Root cause confirmed:** 2026-07-21  
+
+> **This issue has THREE independent layers.** All three must be fixed. Fixing only
+> Layer 1 exposes Layer 2; fixing only Layers 1+2 exposes Layer 3.
+
+---
+
+### Layer 1 — mTLS SSL Context Crash (First-Query-Only Symptom)
+
+**Original symptom:** Only the first query per RE container succeeds.
+
+**Error in Cloud Logging:**
+```
+ERROR: Exception in thread Thread-2 (_asyncio_thread_main):
+  ValueError: Context has already been used to create a Connection,
+              it cannot be mutated again
+```
+
+**Root Cause:**  
+Inside RE containers, `mtls.should_use_client_cert()` returns `True` because the
+container has mTLS certs provisioned for Vertex AI platform communication.
+ADK's `_get_gcp_span_exporter()` calls `session.configure_mtls_channel()`, creating
+a pyopenssl SSL context. After the first OTEL export uses this context, it becomes
+"used". On the second flush, urllib3/pyopenssl tries to mutate the same context:
+`ValueError: Context has already been used` — unhandled exception kills Thread-2.
+
+**Fix (Layer 1):** `GOOGLE_API_USE_MTLS_ENDPOINT=never`
+
+---
+
+### Layer 2 — TCP Block: OTEL Export Starves Query Threads (Alternating Failure)
+
+**Symptom after Layer 1 fix:** Alternating pattern Q1-pass Q2-fail Q3-pass Q4-fail.
+
+**Root Cause:**  
+`telemetry.googleapis.com` is NOT in the Agent Gateway PSC egress routing table.
+Outbound packets to unregistered hosts are **silently dropped** (no TCP RST).
+The OTEL `BatchSpanProcessor` background thread calls `session.post()` which blocks
+for the OS TCP SYN timeout (~10-15s). During this window, query-handling threads
+are starved or blocked on shared networking/asyncio state.
+
+**Fix (Layer 2):**
+```
+OTEL_EXPORTER_OTLP_TIMEOUT=2000       # export gives up after 2s
+OTEL_BSP_EXPORT_TIMEOUT_MILLIS=2000   # BatchSpanProcessor export timeout
+OTEL_BSP_SCHEDULE_DELAY_MILLIS=15000  # delay first export 15s (post-warmup)
+```
+
+---
+
+### Layer 3 — google.genai aiohttp Session Singleton (CONFIRMED ROOT CAUSE)
+
+**Symptom after Layers 1+2 fix:** Q1 passes, Q2+ ALL fail immediately (1-2s, no model call):
+
+```
+ERROR: Exception in thread Thread-N (_asyncio_thread_main):
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+```
+
+**Root Cause (confirmed by source code inspection of google-genai SDK):**
+
+`google.genai._api_client.BaseApiClient._use_google_auth_async()` returns `True` when:
+- `aiohttp` is installed ✅
+- `vertexai=True` ✅
+- `mtls.should_use_client_cert()` returns `True` ← RE containers have mTLS certs provisioned ✅
+
+When this path is active, `_get_aiohttp_session()` creates an `aiohttp.AsyncAuthorizedSession`
+**once** and caches it as `self._aiohttp_session`. This session stores Q1's `asyncio.run()` event
+loop reference internally.
+
+After Q1 completes, `asyncio.run()` **closes** that event loop. The session's `_loop` is now closed.
+
+For Q2, the RE container starts a new `_asyncio_thread_main` thread, calls `asyncio.run()` again
+(creating a **new** event loop), but `_get_aiohttp_session()` returns the **SAME** cached session
+with the **old closed loop**. The very first use of this session calls `self._check_closed()` →
+`RuntimeError: Event loop is closed`. Thread-N crashes. Q2+ return 0 events.
+
+The non-google-auth-async path has a `_loop.is_closed()` guard to recreate the session;
+the google-auth-async path (`AsyncAuthorizedSession`) does NOT.
+
+**Fix (Layer 3):** `GOOGLE_API_USE_CLIENT_CERTIFICATE=false`
+
+This env var makes `mtls.should_use_client_cert()` return `False`, which causes:
+- `_use_google_auth_async()` returns `False`
+- `_use_aiohttp()` returns `False`
+- `google.genai` falls back to `httpx.AsyncClient` (no singleton, no loop binding)
+
+All OTEL telemetry continues to work. `emit_llm_usage_from_response` and the OTEL
+`google-genai` instrumentation are both unaffected.
+
+Note: `GOOGLE_API_USE_MTLS_ENDPOINT=never` (Layer 1) controls the **endpoint URL** but does NOT
+change `should_use_client_cert()`. Both env vars are required.
+
+---
+
+### Complete Fix Applied (2026-07-21)
+
+Add ALL FIVE env vars to `scripts/deploy_chat_agent.sh`'s `.env` heredoc:
+
+```bash
+# Layer 1: mTLS SSL context crash fix
+GOOGLE_API_USE_MTLS_ENDPOINT=never
+
+# Layer 2: TCP block timeout fix
+OTEL_EXPORTER_OTLP_TIMEOUT=2000
+OTEL_BSP_EXPORT_TIMEOUT_MILLIS=2000
+OTEL_BSP_SCHEDULE_DELAY_MILLIS=15000
+
+# Layer 3: aiohttp session singleton fix — disables mTLS aiohttp path, uses httpx
+GOOGLE_API_USE_CLIENT_CERTIFICATE=false
+```
+
+All five vars are NOT in the gateway_patch's `_OTEL_VARS` override list and are
+preserved as-is in the RE container environment.
+
+### Rollback Procedure
+
+```bash
+# From mod-agw-foundation-pub/ project root:
+bash scripts/deploy_chat_agent.sh
+```
+
+### Files Changed
+
+- `scripts/deploy_chat_agent.sh`: Added 5 OTEL fix env vars to `.env` heredoc
+- `skills/gateway-agent-sdk/SKILL.md`: Full 3-layer OTEL fix documented in Lesson #9
+
+---
+
+## Issue #008 — Unpinned SDK: `agentplatform.Client` Transport Bypasses Org Policy Patch
+
+**Status:** ✅ Fixed — versions pinned in deploy script and Terraform template  
+**Severity:** Critical — ALL 4 org policy constraints violated, deploy fails with 400  
+**Discovered:** 2026-07-25  
+
+### Symptom
+
+```
+Deploy failed: 400 FAILED_PRECONDITION.
+'Operation denied by org policy on resource 'projects/YOUR_PROJECT_ID/locations/YOUR_REGION':
+  ["customConstraints/custom.acmecorpEnforceAgentIdentityForReasoningEngine": ...]
+  ["customConstraints/custom.acmecorpEnforceReasoningEngineOtelConfig": ...]
+  ["customConstraints/custom.acmecorpEnforceReasoningEngineAgentGatewayConfig": ...]
+  ["customConstraints/custom.enforceReasoningEngineAgentGatewayConfig": ...]'
+```
+
+All 4 org policy constraints violated simultaneously. The patch appears to load:
+```
+[gateway_patch] Patched AuthorizedSession.send (PreparedRequest level)
+[gateway_patch] Patched httpx.Client.send (transport level)
+[gateway_patch] Patched ReasoningEngineServiceClient (class level)
+[gateway_patch] Patched ReasoningEngineClientWithOverride (class level)
+[patch] verify OK
+```
+
+But **no** `[gateway_patch] Injected identityType+agentGatewayConfig+OTEL...` or
+`[gateway_patch] REST CREATE ->` messages appear during `adk deploy`. The interceptors
+register but never fire.
+
+### Root Cause
+
+The deploy script was installing `google-adk` and `google-cloud-aiplatform` **without
+version pins**. A newer version of `google-cloud-aiplatform` (>1.149.0) changed the
+internal transport for Reasoning Engine creation from:
+
+- **Before (1.149.0):** `google.auth.transport.requests.AuthorizedSession` → REST over HTTP
+- **After (newer):** `agentplatform.Client` → different internal transport
+
+The `.pth` monkey-patch covers 3 interception layers:
+1. `AuthorizedSession.send` — HTTP transport layer
+2. `httpx.Client.send` — httpx transport layer
+3. `ReasoningEngineServiceClient.create_reasoning_engine` — GAPIC class method
+
+None of these cover `agentplatform.Client`'s transport. The CREATE call goes through
+a completely new code path, bypassing all 3 layers silently.
+
+**Diagnostic signal:** `adk deploy` shows:
+```
+FutureWarning: The vertexai.Client class is deprecated. Please use agentplatform.Client instead.
+  client = vertexai.Client(
+```
+This warning was also present in the known-working 1.149.0 deployment, but in newer
+versions `vertexai.Client` now delegates internally to `agentplatform.Client` which uses
+a different HTTP stack that the patch does not intercept.
+
+### Fix Applied
+
+Pinned SDK versions in both the Terraform template (`06_agent_provisioning.tf`) and
+the static deploy script (`scripts/deploy_chat_agent.sh`):
+
+```bash
+# IMPORTANT: Do NOT unpin these versions. See KNOWN_ISSUES.md #008.
+.venv/bin/pip install -i https://pypi.org/simple -q --no-deps "google-adk==1.31.1"
+.venv/bin/pip install -i https://pypi.org/simple -q "google-cloud-aiplatform[adk,agent_engines]==1.149.0" "requests" "pydantic"
+```
+
+Also: when upgrading SDK versions in the future, the patch's interceptors must be
+extended to cover the new `agentplatform.Client` transport path before version pins
+are removed.
+
+### Rollback
+
+```bash
+# If you see 400 FAILED_PRECONDITION with all 4 org policy constraints:
+# 1. Delete the existing stale .venv
+rm -rf /path/to/mod-agw-foundation-pub/.venv
+# 2. Redeploy — the script will rebuild .venv with pinned versions
+bash deploy_all.sh
+```
+
+---
+
+## Deployment History
+
+> **Note:** The following table documents the debugging progression during initial deployment.
+> RE IDs are redacted — they are specific to each deployment environment.
+
+| Deploy | Date | Config Change | Outcome |
+|---|---|---|---|
+| RE_001 | Initial | GlobalGemini global endpoint, `response_template_id=security-high` | All queries 403 (Model Armor) |
+| RE_002 | +1h | `response_template_id` removed, GlobalGemini global endpoint | HTTP 200, 0 events (PSC routing broken) |
+| RE_003 | +4h | `response_template_id` removed, GlobalGemini pass-through, callback fix | Q1 pass, Q2+ fail (OTEL Layer 1 crash) |
+| RE_004 | +7 days | + `GOOGLE_API_USE_MTLS_ENDPOINT=never` | Q1/Q3 pass, Q2/Q4 fail (Layer 2 TCP block) |
+| RE_005 | +8 days | + OTLP timeout 2s + BSP delay 15s | Q1-Q3 pass, Q4+ fail (Layer 3 event loop) |
+| RE_006 | +8 days | + `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS=google_genai` | 1/6 (wrong fix — error from asyncio, not OTEL) |
+| RE_007 | +9 days | + `GOOGLE_API_USE_CLIENT_CERTIFICATE=false` | ✅ 6/6 SDK pass + 3/3 gateway pass |
+
+---
+
+## Files Changed
+
+| File | Change |
+|---|---|
+| [`03_security_and_gateways.tf`](03_security_and_gateways.tf) | Removed `response_template_id` from authz extension |
+| [`lib/gateway_agent/global_gemini.py`](lib/gateway_agent/global_gemini.py) | Reverted to pass-through — no endpoint override |
+| [`lib/gateway_agent/agent.py`](lib/gateway_agent/agent.py) | Fixed `_chained_callback` parameter names for ADK 1.31.1 |
+| [`scripts/deploy_chat_agent.sh`](scripts/deploy_chat_agent.sh) | Added 5 OTEL fix env vars to `.env` heredoc |
+
+---
+
+## Lessons Learned
+
+1. **Read the skill first.** The `gateway-agent-sdk` skill existed specifically to
+   prevent re-inventing this wheel. It was consulted too late in the session.
+
+2. **`_get_client_args()` is dead in ADK 1.31.1.** The correct extension point is
+   the `api_client` property. Always verify against the installed SDK version.
+
+3. **PSC is regional.** The global Vertex AI endpoint (`aiplatform.googleapis.com`)
+   is NOT routed by a regional PSC attachment. Never use `location="global"` inside
+   an Agent Gateway RE without first extending the PSC to cover the global endpoint.
+
+4. **ADK callback signatures changed.** In ADK 1.31.1, callbacks receive
+   `callback_context=` and `llm_response=` as keyword arguments.
+
+5. **Model Armor `response_template_id` is incompatible with RE streaming.**
+   The gRPC-HTTP transcoded SSE format always triggers PI/Jailbreak false positives.
+   Use only `request_template_id` on the ingress authz extension.
+
+6. **"Operation was successful" in a 403 means the agent ran.** Always check Model
+   Armor audit logs, not just the HTTP status.
+
+7. **`variables.tf:allowed_egress_hosts` is documentation only.** It is NOT consumed
+   by any Terraform resource. The actual PSC egress routing is managed by the Agent
+   Gateway platform — adding a host there does NOT route it through the PSC.
+
+8. **OTEL issues in RE containers are always multi-layer.** Fixing one symptom
+   exposes the next. Always run 6+ back-to-back queries as a regression test.
+
+9. **google.genai uses aiohttp `AsyncAuthorizedSession` as a singleton in RE containers.**
+   When `mtls.should_use_client_cert()` returns True (RE containers have mTLS certs), the
+   SDK caches an `AsyncAuthorizedSession` bound to Q1's event loop. Q2+'s new
+   `asyncio.run()` loops find the singleton's `_loop` closed → RuntimeError immediately.
+   **Fix:** `GOOGLE_API_USE_CLIENT_CERTIFICATE=false` disables the aiohttp path entirely.
+   Note: `GOOGLE_API_USE_MTLS_ENDPOINT=never` does NOT fix this — it only changes the URL.
+
+10. **Pin versions in BOTH places.** There are two independent pip installs:
+    - **Deploy `.venv`** (local): runs `adk deploy` and the `.pth` monkey-patch. Must pin
+      `google-adk==1.31.1` + `google-cloud-aiplatform==1.149.0` so the patch interceptors
+      (AuthorizedSession, httpx, GAPIC class) cover the transport used by the SDK.
+    - **RE container** (`agents/chat-agent/requirements.txt`): runs inside the container at
+      startup independently. Must also pin `google-adk==1.31.1`. Unpinned = newer ADK =
+      different Pydantic `model` field type = `ValidationError: 1 validation error for
+      GatewayAgent` = container startup crash = code 3 FAILED_TO_START.
+    **Rule:** Any SDK version upgrade must be tested and pinned in BOTH locations simultaneously.
+
+---
+
+## Issue #010 — `roles/modelarmor.inspector` Does Not Exist at Project Scope
+
+**Status:** ✅ Documented — no IAM grant needed  
+**Discovered:** 2026-08-01 during `terraform apply` in `charter-poc-test`
+
+**Symptom:**
+```
+Error: Request `Create IAM Members roles/modelarmor.inspector
+serviceAccount:service-PROJECT_NUMBER@gcp-sa-dep.iam.gserviceaccount.com
+for project "..."` returned error:
+  "Role roles/modelarmor.inspector is not supported for this resource."
+  badRequest
+```
+
+**Root Cause:**  
+`roles/modelarmor.inspector` does not exist in GCP IAM. It was incorrectly assumed the gateway SA (`gcp-sa-dep`) needed an explicit IAM grant to call the Model Armor extension. In reality, the `gcp-sa-dep` service account is a Google-managed SA that operates within the Agent Gateway extension framework — it has implicit authorization to call the MA extension endpoint. No project-level IAM grant is needed or possible.
+
+**Resolution:**  
+Removed `google_project_iam_member.gateway_sa_modelarmor_inspector` from `03_security_and_gateways.tf`. Replaced with a comment explaining the implicit access pattern.
+
+**Rollback:** N/A — removing a resource that was rejected by the API. No rollback needed.
+
+---
+
+## Issue #011 — Agent Gateway API Limits CONTENT_AUTHZ to 1 Policy Per CLIENT_TO_AGENT Gateway
+
+**Status:** ✅ Documented — platform limitation  
+**Discovered:** 2026-08-01 during `terraform apply` in `charter-poc-test`
+
+**Symptom:**
+```
+Error waiting to create AuthzPolicy: Error code 3, message:
+  Failed to update tenant configuration for AgentGateway:
+  generic::invalid_argument: at most one CONTENT_AUTHZ AuthzPolicy is allowed
+  for AgentGateway ".../agentGateways/ran-ingress-gateway"
+  with CLIENT_TO_AGENT access path: invalid argument
+```
+
+**Root Cause:**  
+The Agent Gateway API enforces a hard limit: **at most one `CONTENT_AUTHZ` AuthzPolicy per gateway with `CLIENT_TO_AGENT` (ingress) access path**. The ingress gateway's single `CONTENT_AUTHZ` slot was already occupied by `ran-ma-policy` (Model Armor). Attempting to add a second `CONTENT_AUTHZ` policy for SGP (`ran-sgp-ingress-policy`) violated this constraint.
+
+Note: `REQUEST_AUTHZ` policies count separately and are NOT affected by this limit. The IAP `REQUEST_AUTHZ` policy on the ingress gateway is unaffected.
+
+**Complete Authz Policy Matrix (as of v1.0.2):**
+```
+Ingress gateway (CLIENT_TO_AGENT):
+  ├── REQUEST_AUTHZ → IAP  (service identity validation)      — allowed: unlimited
+  └── CONTENT_AUTHZ → MA   (prompt/content screening)        — max: 1 ← SLOT FULL
+
+Egress gateway (AGENT_TO_ANYWHERE):
+  ├── REQUEST_AUTHZ → IAP  (agent identity on outbound calls) — allowed: unlimited
+  ├── CONTENT_AUTHZ → MA   (AI call screening)               — max: unknown
+  └── CONTENT_AUTHZ → SGP  (semantic governance policy)      — max: unknown
+```
+
+**Resolution:**  
+Removed `google_network_security_authz_policy.ingress_sgp_policy`. SGP governance applies to **egress only** via `ran-sgp-egress-policy`. Inbound content screening relies on Model Armor on the ingress gateway. Documented as a platform constraint.
+
+**Workaround:**  
+None available through the Agent Gateway API. Full closure would require the API to support multiple `CONTENT_AUTHZ` policies per gateway direction — tracked for future platform release.
+
+---
+
+## Issue #012 — IAP Egress: `fail_open=false + ENFORCED` Silently Breaks All RE Outbound Traffic
+
+**Status:** ✅ Fixed — DRY_RUN mode deployed; see Promotion Path below for enforcing  
+**Severity:** Critical — ALL outbound LLM calls, OTEL, and session calls silently fail  
+**Discovered:** 2026-07-xx (charter-poc-test) · **Confirmed + Fixed:** 2026-08-03 (geap-agw)  
+
+> See also: `skills/agw-egress-iap-pitfall/SKILL.md` for full root cause and diagnostic commands.
+
+### Symptom
+
+After adding a `REQUEST_AUTHZ` + IAP authz policy to the egress gateway with `fail_open=false`,
+all agent queries return HTTP 200 with **zero events** and an empty response body.
+No obvious error. Cloud Logging shows the RE received the request but no model call was made.
+
+### Root Cause
+
+RE containers make ALL outbound HTTP (LLM inference, OTEL telemetry, session API) **without
+attaching an IAP token**. When IAP's `REQUEST_AUTHZ` runs in `ENFORCED` mode:
+
+1. IAP sees an empty `Authorization` header (no IAP credential)
+2. IAP evaluates the empty principal against `roles/iap.egressor` → no binding found
+3. IAP returns **DENY** (HTTP 403) for every outbound call
+4. The RE container can't reach Vertex AI → model call times out → 0 events returned
+
+With `fail_open=false`, even if IAP itself is unreachable, the result is DENY. The failure
+is completely silent from the caller's perspective — the RE returns HTTP 200 (the inference
+request succeeded at the RE layer) but with an empty body.
+
+### What the Logs Show
+
+```
+# IAP audit log — egress call with ENFORCED mode
+protoPayload.methodName: AuthorizeUser
+protoPayload.authenticationInfo.principalEmail: (empty)   ← no IAP token on outbound call
+protoPayload.status.code: 7   ← PERMISSION_DENIED
+```
+
+### Correct Configuration (Official Docs Pattern)
+
+The [official docs](https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/gateways/set-up-agent-gateway#gcloud)
+specify **two separate IAP extensions** — one for ingress (enforcing), one for egress (DRY_RUN):
+
+**Ingress (CLIENT_TO_AGENT)** — `fail_open=false`, ENFORCED:
+```hcl
+# Validates caller identity on every inbound request — blocks unauthenticated callers
+resource "google_network_services_authz_extension" "iap_extension" {
+  fail_open = false        # deny if IAP unreachable
+  metadata = {
+    iapPolicyVersion = "V1"
+    # iamEnforcementMode not set = ENFORCED (default)
+  }
+}
+```
+
+**Egress (AGENT_TO_ANYWHERE)** — `fail_open=true`, DRY_RUN:
+```hcl
+# Audit-only — logs agent identity on outbound calls, NEVER blocks
+resource "google_network_services_authz_extension" "iap_extension_egress" {
+  fail_open = true         # CRITICAL: allow even if IAP unreachable
+  metadata = {
+    iapPolicyVersion   = "V1"
+    iamEnforcementMode = "DRY_RUN"   # audit-only: logs, never denies
+  }
+}
+```
+
+The egress policy targets the egress gateway with `policy_profile = "REQUEST_AUTHZ"` and
+references the DRY_RUN extension. Traffic is never blocked. IAP writes audit log entries
+(`AuthorizeUser`, `status.code=0`) for each outbound call, providing agent identity visibility.
+
+### What DRY_RUN Provides Today
+
+With DRY_RUN deployed (current state):
+
+- ✅ All egress traffic flows normally (agents can call Vertex AI, OTEL, etc.)
+- ✅ IAP fires on every egress call — `AuthorizeUser` entries appear in Cloud Logging
+- ✅ `resource: unregisteredEndpoint` — IAP sees the call but endpoint has no `iap.egressor` binding yet
+- ✅ Status code 0 (OK) — DRY_RUN never denies, only logs
+
+### Promotion Path: DRY_RUN → ENFORCED
+
+When you want IAP to actually **enforce** which agents can call which endpoints (e.g.,
+agent A can only call endpoint X, not Y), follow these steps:
+
+#### Step 1 — Grant `roles/iap.egressor` to the Agent Identity SA
+
+> [!IMPORTANT]
+> **This is the Agent Identity SA, NOT `gcp-sa-aiplatform-re`.**
+>
+> `gcp-sa-aiplatform-re` is the Vertex AI platform SA (manages RE lifecycle — deploy, scale, GCS).  
+> The Agent Identity SA represents *the agent itself* as a principal on egress calls.  
+> Agent Gateway uses `identityType: AGENT_IDENTITY` (injected by the gateway patch) to create  
+> a dedicated SA per RE: `agent-RE_RESOURCE_ID@PROJECT_ID.iam.gserviceaccount.com`
+
+Find the Agent Identity SA for each deployed RE:
+
+```bash
+# Get the Agent Identity SA for a specific RE
+gcloud ai reasoning-engines describe RE_ID \
+  --project=YOUR_PROJECT_ID \
+  --location=YOUR_REGION \
+  --format="json(spec.identityType, spec.serviceAccount)"
+
+# Example output:
+# {
+#   "spec": {
+#     "identityType": "AGENT_IDENTITY",
+#     "serviceAccount": "agent-292258986755883008@geap-agw.iam.gserviceaccount.com"
+#   }
+# }
+```
+
+Grant `roles/iap.egressor` to that Agent Identity SA at the registry level:
+
+```bash
+AGENT_IDENTITY_SA="agent-RE_ID@YOUR_PROJECT_ID.iam.gserviceaccount.com"
+
+# At the registry level (covers all registered endpoints in the registry):
+gcloud beta agent-registry registries add-iam-policy-binding REGISTRY_ID \
+  --location=LOCATION \
+  --member="serviceAccount:${AGENT_IDENTITY_SA}" \
+  --role="roles/iap.egressor"
+
+# Or at the individual endpoint level (fine-grained: agent A can reach X but not Y):
+gcloud beta agent-registry endpoints add-iam-policy-binding ENDPOINT_ID \
+  --registry=REGISTRY_ID \
+  --location=LOCATION \
+  --member="serviceAccount:${AGENT_IDENTITY_SA}" \
+  --role="roles/iap.egressor"
+```
+
+> **Note:** Without `iap.egressor`, all egress is **denied by default** once ENFORCED.
+> Grant this role before switching modes.
+
+#### Step 2 — Monitor DRY_RUN logs to confirm all needed bindings exist
+
+```bash
+# Check IAP audit logs — look for unregisteredEndpoint or PERMISSION_DENIED
+gcloud logging read \
+  'protoPayload.serviceName="iap.googleapis.com" protoPayload.methodName="AuthorizeUser"' \
+  --project=YOUR_PROJECT_ID \
+  --freshness=1h \
+  --format=json | python3 -c "
+import json, sys
+for e in json.load(sys.stdin):
+    pp = e.get('protoPayload', {})
+    print(e['timestamp'][:19],
+          pp.get('resourceName', '?'),
+          pp.get('authenticationInfo', {}).get('principalEmail', '(empty)'),
+          pp.get('status', {}).get('code', 'OK'))
+"
+```
+
+A healthy DRY_RUN log looks like:
+```
+2026-08-03T17:56:52  unregisteredEndpoint  (empty)  0     ← DRY_RUN: allowed, logged
+```
+
+Once `iap.egressor` is granted, it will look like:
+```
+2026-08-03T...  projects/.../registries/.../endpoints/...  re-sa@...  0  ← registered, allowed
+```
+
+#### Step 3 — Promote to ENFORCED in Terraform
+
+In `03_security_and_gateways.tf`, change the egress extension:
+
+```hcl
+resource "google_network_services_authz_extension" "iap_extension_egress" {
+  fail_open = false   # ← was true
+  metadata = {
+    iapPolicyVersion   = "V1"
+    iamEnforcementMode = "ENFORCED"   # ← was "DRY_RUN"
+  }
+}
+```
+
+Then apply:
+```bash
+terraform apply -target=google_network_services_authz_extension.iap_extension_egress -auto-approve
+```
+
+#### Step 4 — Smoke test immediately
+
+```bash
+# Run guardrail tests — ALLOW cases must still pass
+.venv/bin/python test-agent/run_guardrail_tests.py \
+  --project YOUR_PROJECT_ID --location YOUR_REGION --agent-name chat_agent
+```
+
+If ALLOW tests fail (empty responses), check IAP logs for `code: 7` (PERMISSION_DENIED)
+and go back to Step 1 to add missing `iap.egressor` grants.
+
+### Rollback (if ENFORCED breaks egress)
+
+```bash
+# Immediate: revert to DRY_RUN via gcloud
+cat > /tmp/iap-ext-egress.yaml << EOF
+name: ${PREFIX}-iap-extension-egress
+service: iap.googleapis.com
+failOpen: true
+timeout: 1s
+metadata:
+  iapPolicyVersion: "V1"
+  iamEnforcementMode: "DRY_RUN"
+EOF
+
+gcloud beta service-extensions authz-extensions import ${PREFIX}-iap-extension-egress \
+  --source=/tmp/iap-ext-egress.yaml \
+  --location=YOUR_REGION \
+  --project=YOUR_PROJECT_ID
+```
+
+Then `terraform apply` to reconcile state.
+
+---
+
+## Issue #013 — Agent Identity mTLS Certs Invalid (Epoch Timestamp) — IAP ENFORCED Non-Functional
+
+**Status:** 🔴 Open — platform bug (P2 High), filed with Google Support  
+**Severity:** P2 High — IAP identity enforcement on egress is non-functional  
+**Project:** `charter-poc-test` (185602934768)  
+**Discovered:** 2026-08-04  
+
+### The Two Must-Have Sanity Checks
+
+Before debugging anything else, always verify:
+
+```bash
+# Check 1: agentGatewayConfig ≠ {} (gateway patch fired)
+gcloud ai reasoning-engines describe RE_ID \
+  --project=PROJECT --location=REGION \
+  --format="json(spec.agentGatewayConfig)"
+# Expected: populated JSON, not {}
+
+# Check 2: mTLS cert timestamp ≠ 1970-01-01 (cert provisioned)
+gcloud logging read \
+  'resource.type="networkservices.googleapis.com/Gateway" jsonPayload.mtls.clientCertPresent="true"' \
+  --project=PROJECT --limit=3 --format=json | \
+  python3 -c "import json,sys; [print(e['jsonPayload']['mtls']) for e in json.load(sys.stdin)]"
+# Expected: clientCertChainVerified=true, clientCertValidEndTime ≠ 1970-01-01
+```
+
+Or just run: `bash scripts/check_agent_health.sh [RE_ID]`
+
+### Summary
+
+Reasoning Engines deployed with `spec.identityType = "AGENT_IDENTITY"` correctly
+populate `effectiveIdentity` in the RE spec, but the mTLS client certificates
+presented by RE containers on egress are invalid/placeholder:
+
+- `clientCertChainVerified: false` — not issued by Google's internal CA
+- `clientCertValidEndTime: 1970-01-01T00:00:00Z` — epoch = null/placeholder cert
+
+Because the cert is invalid, the Agent Gateway egress proxy cannot derive a
+principal from the mTLS subject. IAP's `AuthorizeUser` sees `principal=(empty)`
+and returns `code=7` (PERMISSION_DENIED). Result: IAP ENFORCED on egress blocks
+100% of traffic even with correct `iap.egressor` grants.
+
+### Affected REs (charter-poc-test, 2026-08-04)
+
+| Display Name | RE ID | identityType | effectiveIdentity | Cert Valid? |
+|---|---|---|---|---|
+| ran-insights | 3683469506165866496 | AGENT_IDENTITY | ✅ populated | ❌ epoch |
+| ran-usecase | 552060390259818496 | AGENT_IDENTITY | ✅ populated | ❌ epoch |
+| ran-anomaly | 5588492148543586304 | AGENT_IDENTITY | ✅ populated | ❌ epoch |
+| ran-security | 4315099353904578560 | AGENT_IDENTITY | ✅ populated | ❌ epoch |
+| ran-orchestrator | 8650939895155523584 | AGENT_IDENTITY | ✅ populated | ❌ epoch |
+
+100% of cert fingerprints across all replicas = `chainVerified=false`, `expiry=1970-01-01`.
+
+### What the Gateway Log Shows
+
+```json
+{
+  "mtls": {
+    "clientCertPresent": "true",
+    "clientCertChainVerified": "false",
+    "clientCertValidEndTime": "1970-01-01T00:00:00Z",
+    "clientCertSha256Fingerprint": "c3EYbFlvEHpFrpIrJjDqVAao237cOTebYnEk/sJXljo"
+  },
+  "authzPolicyInfo": { "result": "DENIED" },
+  "httpRequest": { "status": 403 }
+}
+```
+
+### What's Correct vs Broken
+
+| Step | Status |
+|---|---|
+| RE deployed with `identityType: AGENT_IDENTITY` | ✅ |
+| `effectiveIdentity` populated (WIF principal path) | ✅ |
+| `iap.egressor` granted (principal:// and principalSet://) | ✅ |
+| Google CA issues valid mTLS cert to RE container | ❌ — cert is placeholder/null |
+| Gateway derives principal from mTLS subject | ❌ — invalid cert, no subject |
+| IAP sees non-empty principal | ❌ — `principal=(empty)` |
+| IAP ENFORCED allows egress | ❌ — `code=7 PERMISSION_DENIED` |
+
+### Workaround (Current)
+
+Keep IAP in `DRY_RUN` mode (`iamEnforcementMode: DRY_RUN`, `failOpen: true`).
+All egress traffic passes. IAP logs audit entries but never blocks.
+
+### Attempted Fixes (Did Not Help)
+
+- PATCH RE with `updateMask=spec.identityType` — does not re-trigger cert provisioning
+- Waited 7-9 hours after deploy — cert never became valid
+- Granted `iap.egressor` via both `principal://` and `principalSet://*` — ineffective without valid cert
+- Set both `principal://` and SA-level grants — no change
+
+### Reproduce
+
+```bash
+# 1. Deploy any RE with AGENT_IDENTITY (foundation does this by default via gateway patch)
+# 2. Run the health check
+bash scripts/check_agent_health.sh RE_ID
+# Check 2 will show: INVALID|chainVerified=false|expiry=1970-01-01
+
+# 3. Confirm via gateway logs directly
+gcloud logging read \
+  'resource.type="networkservices.googleapis.com/Gateway" AND jsonPayload.mtls.clientCertPresent="true"' \
+  --project=charter-poc-test --limit=5 --format=json
+```
+
+### Questions for Google Support
+
+1. Why are mTLS certs invalid? `identityType=AGENT_IDENTITY` is set, `effectiveIdentity` is populated.
+2. Is cert provisioning async? Do REs need to be running/active for the cert to be issued?
+3. Does PATCH trigger re-provisioning, or does the RE need to be deleted and redeployed?
+4. Is IAP ENFORCED on egress (with Agent Identity mTLS) GA-supported or still preview?
+5. Is there a prerequisite API, org policy, or CA pool configuration required?
+
+### Rollback
+
+```bash
+# Ensure IAP is in DRY_RUN (safe mode) — one command
+cat > /tmp/iap-dryrun.yaml << EOF
+name: PREFIX-iap-extension-egress
+service: iap.googleapis.com
+failOpen: true
+timeout: 1s
+metadata:
+  iapPolicyVersion: "V1"
+  iamEnforcementMode: "DRY_RUN"
+EOF
+gcloud beta service-extensions authz-extensions import PREFIX-iap-extension-egress \
+  --source=/tmp/iap-dryrun.yaml --location=REGION --project=PROJECT
+```
+

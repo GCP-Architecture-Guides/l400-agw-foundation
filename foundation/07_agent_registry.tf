@@ -1,0 +1,143 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# This code is for PoC environment only.
+# This demo code is not built for production workload.
+
+# ==============================================================================
+# 7. AGENT REGISTRY — ENDPOINT REGISTRATION + ACCESS POLICY
+# ==============================================================================
+# Registers every host in var.allowed_egress_hosts as a discoverable service
+# endpoint in the Agent Registry, and grants the Vertex AI RE service agent
+# roles/agentregistry.viewer so all deployed Reasoning Engines can discover
+# these endpoints at runtime.
+#
+# WHY: allowed_egress_hosts drives two layers:
+#   Layer 1 (network)  — PSC routing: hosts not in this list have no PSC route
+#                        and are dropped by the egress gateway (deny-by-default).
+#   Layer 2 (registry) — Agent Registry: each host is registered as a named
+#                        service that agents can discover dynamically, removing
+#                        the need to hardcode endpoint URLs in agent code.
+#
+# NOTE: google_agent_registry_service Terraform resource requires google-beta
+# provider >= 7.42.0. This deployment runs 7.38.0, so we use null_resource +
+# gcloud alpha agent-registry services create (confirmed-working pattern, same
+# as the SGP engine lookup in 02_network.tf). When the provider is upgraded to
+# >= 7.42.0, replace null_resource blocks with google_agent_registry_service.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Convert each hostname into a valid service-id (dots → hyphens).
+# e.g. "api.github.com" → "api-github-com"
+# ------------------------------------------------------------------------------
+locals {
+  # Map of hostname → sanitized service_id
+  egress_host_ids = {
+    for host in var.allowed_egress_hosts :
+    host => replace(host, ".", "-")
+  }
+}
+
+# ------------------------------------------------------------------------------
+# Register each egress host as an Agent Registry service endpoint.
+# Uses null_resource + local-exec because google_agent_registry_service
+# requires provider >= 7.42.0 (installed: 7.38.0).
+#
+# Idempotent: the || true suppresses the "already exists" error on re-apply.
+# The trigger is the host name — re-registers only if the host list changes.
+# ------------------------------------------------------------------------------
+resource "null_resource" "register_egress_endpoint" {
+  for_each = local.egress_host_ids
+
+  triggers = {
+    host       = each.key
+    service_id = each.value
+    project    = var.project_id
+    location   = var.location
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Registering ${each.key} in Agent Registry..."
+      gcloud alpha agent-registry services create "${each.value}" \
+        --project="${var.project_id}" \
+        --location="${var.location}" \
+        --display-name="${each.key}" \
+        --description="Egress endpoint managed by Terraform. PSC-routed via ${var.prefix}-egress-gateway. Source: allowed_egress_hosts." \
+        --endpoint-spec-type=no-spec \
+        --interfaces="url=https://${each.key},protocolBinding=http-json" \
+        --quiet 2>&1 || echo "  (already exists or non-fatal error — continuing)"
+      # NOTE: The Agent Registry API (gcloud alpha) only accepts ONE --interfaces
+      # entry per create call. Multiple --interfaces flags cause a fieldViolations
+      # error on service.interfaces[1]. The gateway matches by hostname (FQDN
+      # from PSC DNS override), not by protocol binding — http-json is sufficient
+      # to register the host in the allowlist. If grpc-specific bindings are
+      # needed in future, use the REST API directly: PATCH /v1beta1/.../services
+      # with a full interfaces[] JSON array body.
+    EOT
+  }
+
+  # Deletion: de-register from Agent Registry when removed from allowed_egress_hosts
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      echo "De-registering ${self.triggers.host} from Agent Registry..."
+      gcloud alpha agent-registry services delete "${self.triggers.service_id}" \
+        --project="${self.triggers.project}" \
+        --location="${self.triggers.location}" \
+        --quiet 2>&1 || echo "  (not found or already deleted — continuing)"
+    EOT
+  }
+
+  depends_on = [google_project_service.agentregistry]
+}
+
+# ------------------------------------------------------------------------------
+# IAM: Grant the Vertex AI RE service agent roles/agentregistry.viewer
+# so all deployed Reasoning Engines can discover registered services at runtime.
+#
+# IMPORTANT: The SA service-PROJECT_NUMBER@gcp-sa-aiplatform-re.iam.gserviceaccount.com
+# is a Google-managed service agent that is only created by Vertex AI when the FIRST
+# Reasoning Engine is deployed in the project. It does NOT exist on a fresh project
+# before any RE deployment, so a google_project_iam_member resource would fail with
+# "service account does not exist" on every fresh project terraform apply.
+#
+# Fix: use null_resource + gcloud iam add-iam-policy-binding with || true.
+# This makes the grant idempotent:
+#   - Fresh project (SA doesn't exist yet): gcloud fails gracefully (|| true)
+#   - After first RE deploy: SA exists; scripts/deploy_chat_agent.sh and
+#     scripts/deploy_global_agent.sh both re-run terraform apply, which
+#     will then succeed and apply the grant.
+# ------------------------------------------------------------------------------
+resource "null_resource" "re_agent_registry_viewer" {
+  triggers = {
+    project = var.project_id
+    number  = data.google_project.project.number
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Granting roles/agentregistry.viewer to RE service agent..."
+      gcloud projects add-iam-policy-binding "${var.project_id}" \
+        --member="serviceAccount:service-${data.google_project.project.number}@gcp-sa-aiplatform-re.iam.gserviceaccount.com" \
+        --role="roles/agentregistry.viewer" \
+        --quiet 2>&1 || echo "  (SA not yet created — will be granted after first RE deploy; continuing)"
+    EOT
+  }
+
+  depends_on = [
+    google_project_service.agentregistry,
+    google_project_service.aiplatform,
+  ]
+}
