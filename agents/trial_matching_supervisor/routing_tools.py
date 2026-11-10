@@ -14,8 +14,13 @@
 
 """Routing and perimeter interceptor tools for Trial Matching Supervisor.
 
-TASK 1: HIPAA De-Identification & GINA Title II Isolation Interceptor.
-TASK 5: Downscoped IAM OIDC service token validation and calling permissions.
+TASK 1 CHALLENGE:
+Learners implement the HIPAA De-Identification & GINA Title II Isolation Interceptor.
+Use `lego_blocks/block_1_hipaa_gina_rules.py` as your reference implementation!
+
+TASK 5 CHALLENGE:
+Learners enforce downscoped IAM OIDC service token validation and calling permissions.
+Use `lego_blocks/block_6_oidc_auth_guard.py` as your reference implementation!
 """
 
 from __future__ import annotations
@@ -24,11 +29,6 @@ import logging
 from typing import Any
 
 from app.contracts import ClinicalIntakeEnvelope
-from lego_blocks.block_1_hipaa_gina_rules import (
-    sanitize_hipaa_pii,
-    quarantine_gina_germline_data,
-)
-from lego_blocks.block_6_oidc_auth_guard import verify_oidc_service_token
 
 logger = logging.getLogger(__name__)
 
@@ -42,38 +42,28 @@ def intercept_and_deidentify_intake(
 
     Sanitizes HIPAA Safe Harbor direct identifiers and quarantines GINA Title II
     hereditary risk markers before distributing work to domain sub-agents.
+
+    TODO (Task 1): Connect this function to `sanitize_hipaa_pii` and
+    `quarantine_gina_germline_data` from `lego_blocks.block_1_hipaa_gina_rules`.
     """
-    # Step 1: Scrub HIPAA PII (SSN, MRN, Name, DOB, Street Address)
-    hipaa_clean, has_pii = sanitize_hipaa_pii(raw_clinical_notes)
-
-    # Step 2: Quarantine GINA germline markers (BRCA1/2, PALB2, Lynch, etc.)
-    fully_sanitized, quarantined_markers, has_germline = quarantine_gina_germline_data(hipaa_clean)
-
-    # Step 3: Build the ClinicalIntakeEnvelope
-    envelope = ClinicalIntakeEnvelope(
-        patient_id=patient_id,
-        trial_id=trial_id,
-        raw_text=raw_clinical_notes,
-        sanitized_text=fully_sanitized,
-        sanitized_clinical_notes=fully_sanitized,
-        has_pii_violation=has_pii,
-        pii_redacted=has_pii,
-        has_gina_violation=has_germline,
-        gina_quarantined=has_germline,
-        quarantined_germline_markers=quarantined_markers,
+    raise NotImplementedError(
+        "TODO (Task 1): Implement intercept_and_deidentify_intake in "
+        "agents/trial_matching_supervisor/routing_tools.py using "
+        "lego_blocks/block_1_hipaa_gina_rules.py"
     )
-
-    return {
-        "envelope": envelope.model_dump(),
-        "somatic_notes_for_genomics": fully_sanitized,
-        "patient_id": patient_id,
-        "trial_id": trial_id,
-    }
 
 
 def verify_mesh_caller_authorization(
     token: str,
     expected_target: str,
 ) -> dict[str, Any]:
-    """Validates downscoped IAM OIDC service token and caller permissions."""
-    return verify_oidc_service_token(token, expected_target)
+    """Validates downscoped IAM OIDC service token and caller permissions.
+
+    TODO (Task 5): Connect this function to `verify_oidc_service_token`
+    from `lego_blocks.block_6_oidc_auth_guard`.
+    """
+    raise NotImplementedError(
+        "TODO (Task 5): Implement verify_mesh_caller_authorization in "
+        "agents/trial_matching_supervisor/routing_tools.py using "
+        "lego_blocks/block_6_oidc_auth_guard.py"
+    )

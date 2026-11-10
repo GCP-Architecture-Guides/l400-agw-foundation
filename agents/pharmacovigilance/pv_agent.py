@@ -12,27 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Pharmacovigilance Sub-Agent Definition (ADK)."""
+"""Pharmacovigilance Sub-Agent Definition (ADK).
+
+TASK 4 CHALLENGE:
+Decouple pharmacovigilance safety evaluation into a dedicated sub-agent.
+Applies FastMCP clearance calculations and flags borderline immune-mediated adverse events.
+"""
 
 from __future__ import annotations
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "lib"))
-
-from gateway_agent import GatewayAgent
-from agents.pharmacovigilance.pv_tools import evaluate_patient_pharmacovigilance
-
-pv_agent = GatewayAgent(
-    name="PharmacovigilanceAgent",
-    model="gemini-3.7-flash",
-    instruction=(
-        "You are the Pharmacovigilance specialist for the Aegis TrialShield mesh. "
-        "Your role is to evaluate drug washout clearance and adverse event safety:\n"
-        "1. Use deterministic FastMCP calculations for drug washout periods (not AI guessing).\n"
-        "2. Map adverse events to MedDRA v26 ontology with CTCAE v5.0 grading.\n"
-        "3. Flag borderline safety contraindications (Grade 2+ irAEs, steroid tapers) "
-        "for mandatory HITL oncologist review.\n"
-        "4. Return structured PharmacovigilanceReport with exact deficit days."
-    ),
-    tools=[evaluate_patient_pharmacovigilance],
-)
+# TODO (Task 4): Import Agent from google.adk.agents and instantiate pv_agent
+# using model="gemini-3.7-flash", proper pharmacovigilance instructions, and binding
+# `evaluate_patient_pharmacovigilance` from .pv_tools.
+pv_agent = None

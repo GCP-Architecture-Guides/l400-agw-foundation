@@ -12,27 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Genomic Biomarker Sub-Agent Definition (ADK)."""
+"""Genomic Biomarker Sub-Agent Definition (ADK).
+
+TASK 4 CHALLENGE:
+Decouple genomic biomarker evaluation into a dedicated sub-agent.
+Adheres strictly to GINA Title II by ignoring quarantined germline markers
+and focusing solely on somatic tumor alterations.
+"""
 
 from __future__ import annotations
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "lib"))
-
-from gateway_agent import GatewayAgent
-from agents.genomic_biomarker.genomic_tools import validate_somatic_biomarker
-
-genomic_agent = GatewayAgent(
-    name="GenomicBiomarkerAgent",
-    model="gemini-3.7-flash",
-    instruction=(
-        "You are the Genomic Biomarker specialist for the Aegis TrialShield mesh. "
-        "Your role is to evaluate somatic tumor mutations (EGFR, KRAS, BRAF) for trial "
-        "NCT-AEGIS-001 eligibility. You must:\n"
-        "1. Validate only somatic oncology driver mutations from NGS/pathology reports.\n"
-        "2. NEVER treat hereditary germline variants (BRCA1/2, Lynch, PALB2) as tumor inclusion drivers.\n"
-        "3. Quarantine any germline findings per GINA Title II.\n"
-        "4. Return structured GenomicWorkerReport with clear somatic/germline separation."
-    ),
-    tools=[validate_somatic_biomarker],
-)
+# TODO (Task 4): Import Agent from google.adk.agents and instantiate genomic_agent
+# using model="gemini-3.7-flash", proper genomic instructions, and binding
+# `validate_somatic_biomarker` from .genomic_tools.
+genomic_agent = None

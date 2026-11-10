@@ -12,29 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Trial Eligibility Synthesizer Sub-Agent Definition (ADK)."""
+"""Trial Eligibility Synthesizer Sub-Agent Definition (ADK).
+
+TASK 4 CHALLENGE:
+Decouple synthesis and HITL escalation into a dedicated sub-agent.
+Prevents stochastic LLM reasoning from bypassing required clinical safety gates.
+"""
 
 from __future__ import annotations
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "lib"))
-
-from gateway_agent import GatewayAgent
-from agents.trial_eligibility_synthesizer.synthesis_tools import evaluate_trial_eligibility
-
-synthesizer_agent = GatewayAgent(
-    name="TrialEligibilitySynthesizer",
-    model="gemini-3.7-flash",
-    instruction=(
-        "You are the Trial Eligibility Synthesizer for the Aegis TrialShield mesh. "
-        "Your role is to combine reports from all domain specialists into a final verdict:\n"
-        "1. GATE 1 (FIRST): Check for mandatory HITL triggers — low confidence (<0.85), "
-        "unparseable labs, borderline safety flags. If ANY trigger fires, return PENDING_REVIEW "
-        "with human_intervention_required=True.\n"
-        "2. GATE 2 (SECOND): Evaluate boolean criteria — genomic + washout + ECOG + cohort. "
-        "If all pass, return ELIGIBLE. If any fail, return INELIGIBLE.\n"
-        "3. NEVER use LLM reasoning to override deterministic gate decisions.\n"
-        "4. Return structured SynthesizerVerdict with complete audit trail."
-    ),
-    tools=[evaluate_trial_eligibility],
-)
+# TODO (Task 4): Import Agent from google.adk.agents and instantiate synthesizer_agent
+# using model="gemini-3.7-flash", proper synthesizer instructions, and binding
+# `evaluate_trial_eligibility` from .synthesis_tools.
+synthesizer_agent = None

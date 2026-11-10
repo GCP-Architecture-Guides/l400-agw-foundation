@@ -52,6 +52,7 @@ htmlcov/
 scratch/
 tmp/
 *.tmp
+
 # Terraform state (foundation)
 foundation/terraform.tfstate*
 foundation/.terraform/

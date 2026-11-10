@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""FastMCP Server for FHIR R4 Laboratory Normalization & ECOG Scoring."""
+"""FastMCP Server for FHIR R4 Laboratory Normalization & ECOG Scoring.
+
+TASK 2 CHALLENGE:
+Expose deterministic FHIR UCUM laboratory conversions and ECOG
+performance status scoring as FastMCP micro-tools.
+Use `lego_blocks/block_3_fhir_lab_normalizer.py` as your reference implementation!
+"""
 
 from __future__ import annotations
 
@@ -20,10 +26,6 @@ import logging
 from typing import Any
 
 from fastmcp import FastMCP
-from lego_blocks.block_3_fhir_lab_normalizer import (
-    normalize_fhir_renal_labs,
-    extract_ecog_status,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +43,14 @@ def mcp_normalize_renal_labs(
     raw_unit: str = "mg/dL",
     unparseable_labs: bool = False,
 ) -> dict[str, Any]:
-    """Standardizes laboratory creatinine observations."""
-    return normalize_fhir_renal_labs(
-        lab_type="serum_creatinine",
-        raw_value=raw_value,
-        raw_unit=raw_unit,
-        unparseable_labs=unparseable_labs,
+    """Standardizes laboratory creatinine observations.
+
+    TODO (Task 2): Use normalize_fhir_renal_labs from
+    lego_blocks.block_3_fhir_lab_normalizer to implement this tool.
+    """
+    raise NotImplementedError(
+        "TODO (Task 2): Implement mcp_normalize_renal_labs in "
+        "mcp_servers/fhir_lab_normalizer/server.py using lego_blocks/block_3_fhir_lab_normalizer.py"
     )
 
 
@@ -55,8 +59,15 @@ def mcp_normalize_renal_labs(
     description="Extracts ASCO/ECOG functional score (0-5) from clinician notes without falsy-zero bugs.",
 )
 def mcp_extract_ecog_score(clinical_notes: str) -> dict[str, Any]:
-    """Scores ECOG performance status from free-text notes."""
-    return extract_ecog_status(clinical_notes)
+    """Scores ECOG performance status from free-text notes.
+
+    TODO (Task 2): Use extract_ecog_status from
+    lego_blocks.block_3_fhir_lab_normalizer to implement this tool.
+    """
+    raise NotImplementedError(
+        "TODO (Task 2): Implement mcp_extract_ecog_score in "
+        "mcp_servers/fhir_lab_normalizer/server.py using lego_blocks/block_3_fhir_lab_normalizer.py"
+    )
 
 
 if __name__ == "__main__":
