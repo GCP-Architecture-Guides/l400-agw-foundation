@@ -1,323 +1,691 @@
-# CEPF128-L400: Deconstruct the Monolithic Mega Agent & Architect a Secure Healthcare Multi-Agent Mesh
+<!-- Copyright 2025 Google LLC
 
-[![Lab Tier: L400 Expert](https://img.shields.io/badge/Lab_Tier-L400_Expert-red.svg)](https://cloud.google.com)
-[![Google ADK](https://img.shields.io/badge/Framework-Google_ADK-blue.svg)](https://github.com/google/agent-development-kit)
-[![Model: Gemini 3.7 Flash](https://img.shields.io/badge/Model-Gemini_3.7_Flash-4285F4.svg)](https://cloud.google.com/vertex-ai)
-[![Compliance: HIPAA Safe Harbor & GINA Title II](https://img.shields.io/badge/Compliance-HIPAA_%7C_GINA-green.svg)](https://hhs.gov)
-[![Autograder: 100/100 Pts](https://img.shields.io/badge/Autograder-100%2F100_Pts-brightgreen.svg)](Makefile)
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
----
+    https://www.apache.org/licenses/LICENSE-2.0
 
-## 1. What You Will Learn in This 2-Hour Lab
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
 
-Welcome! In this hands-on lab, you will act as a Lead Cloud Security Architect tasked with remediating a high-risk AI healthcare application that failed its security audit. You do **NOT** need any medical background, biology training, or healthcare expertise—all medical formulas and rules are pre-built for you in ready-to-use Python helper modules ("Lego blocks").
+# Agent-Gateway-Foundation
 
-By the end of this lab, you will know how to:
-- **Deconstruct an Unsafe "Mega Agent":** Break down an all-powerful, single-prompt AI agent into 5 specialized micro-agents with clear, isolated boundaries and typed contracts using the **Google Agent Development Kit (ADK)** (Google's framework for building modular AI agents).
-- **Sanitize Sensitive Patient Data at the Perimeter:** Intercept and scrub direct identifiers (Names, Social Security Numbers [SSNs], Medical Record Numbers [MRNs], and Dates of Birth) under **HIPAA** (US patient privacy law protecting personal identifiers) before any AI sees them, while fixing naive regex patterns so treatment durations like `"30 days"` are never corrupted.
-- **Quarantine Protected Family Genetics:** Implement cryptographic isolation under **GINA (Genetic Information Nondiscrimination Act)** (US law that makes it illegal to use a person's inherited family DNA when making eligibility or employment decisions) to quarantine inherited family DNA (*Germline Variants*, like `BRCA1/2` or `PALB2`) into a private audit vault while safely passing tumor mutations (*Somatic Variants*, like `EGFR` or `KRAS`) to clinical screeners.
-- **Stop AI Math Guesswork with FastMCP Tools:** Replace unreliable **AI guesswork in free text** with deterministic Python calculators via **FastMCP (Model Context Protocol)** (a standard way to connect AI agents to exact Python calculator tools so the AI doesn't guess math in free text) for drug cooldown timers and standardized kidney lab numbers.
-- **Install a Two-Gate Human Safety Circuit-Breaker:** Eliminate dangerous binary Approve/Deny decisions by creating a mandatory **Human-in-the-Loop (HITL / `PENDING_REVIEW`)** safety gate that pauses the AI and routes cases to human doctors whenever confidence drops below 85% (`0.85`), lab units are unreadable (`mg%`), or active drug side effects are flagged.
-- **Enforce Least-Privilege IAM & OIDC Bearer Tokens:** Revoke an over-permissioned God-mode service account (`sa-legacy-god-mode`) and enforce fine-grained **OIDC (OpenID Connect) Bearer Tokens** (cryptographic ID badges that prove which Service Account is calling a microservice) to secure agent-to-agent communication and reject off-topic prompt attacks.
+> ⚠️ **Disclaimer:** This code is for PoC environment only.
+> This demo code is not built for production workload.
 
----
+> Production-hardened infrastructure-as-code for deploying AI agents — single or
+> multi-agent — secured by Google Cloud **Agent Gateway**: PSC routing, Model Armor,
+> DLP, IAP, SGP semantic guardrails, org policies, and OTEL observability. Battle-tested
+> over 6+ weeks in a fully org-policy-enforced GCP environment.
 
-## 2. The Business Case (Why the CISO Stopped the Launch)
-
-To automate patient screening for an experimental lung cancer clinical trial (**`NCT-AEGIS-001`**), an engineering team took a risky shortcut: they deployed a single **"Monolithic Mega Agent"** (`TrialShield POC Agent`). 
-
-They bundled everything—patient intake, genetic matching, medication safety checks, kidney lab reviews, and final trial eligibility decisions—into one massive prompt. Worse, they ran this mega agent under an all-powerful Google Cloud service account (`sa-legacy-god-mode`) with unrestricted administrative access across the entire project.
-
-During red-team penetration testing, the Chief Information Security Officer (CISO) discovered critical security, legal, and patient safety flaws and issued an immediate **Stop-Work Order**, halting deployment due to severe enterprise risks:
-
-1. **$1.9M+ HIPAA Privacy Liability:**
-   - **HIPAA** (Health Insurance Portability and Accountability Act) is the US federal patient privacy law protecting personal identifiers like Names, Social Security Numbers (SSNs), Medical Record Numbers (MRNs), and Street Addresses.
-   - The Mega Agent used a naive street-address regex that mistook medical durations like `"30 days"` for street names (corrupting clinical timelines to `[REDACTED_STREET_ADDRESS] ago`), while letting actual SSNs, MRNs, and patient names leak straight into plaintext outputs and audit logs. This triggers statutory penalties capped at **$1,900,000+ per year** under HHS OCR (Department of Health and Human Services Office for Civil Rights) Tier 4 willful neglect rules.
-2. **$300,000 GINA Genetic Discrimination Liability:**
-   - **GINA** (Genetic Information Nondiscrimination Act) is a US federal law that makes it illegal to use a person's inherited family DNA when making clinical eligibility or employment decisions.
-   - The Mega Agent suffered a critical conceptual confusion: it failed to distinguish between a **Tumor Mutation (*Somatic Variant*, like `EGFR`, `KRAS`, `BRAF`)**, which is a DNA change found *only inside the cancer tumor* that the clinical trial *is* targeting, and **Inherited Family DNA (*Germline Variant*, like `BRCA1/2`, `MLH1`, `PALB2`)**, which is passed down from parents in normal blood and must be quarantined at the door as a protected secret. In patient `PT-704`, the agent used an inherited `BRCA2` mutation to approve an ineligible patient whose tumor lacked the required target! This unlawful commingling exposes the organization to **$300,000 per violation** under EEOC (Equal Employment Opportunity Commission) / ADA statutory damage limits.
-3. **Clinical Safety Hazard from Binary Decisions (No Human Safety Net):**
-   - The Mega Agent forced all decisions into a rigid binary output: `ELIGIBLE` or `INELIGIBLE`, hardcoding `human_intervention_required = False`.
-   - When reviewing patient `PT-707`—who had active Grade 2 lung inflammation (pneumonitis) requiring steroid medication—the AI blindly approved the patient because a drug cooldown timer had passed, completely ignoring the dangerous active toxicity. In other cases (`PT-703`), it flatly denied viable candidates simply because a laboratory reported kidney numbers in an unfamiliar hospital unit format (`1.0 mg%`).
-4. **Prompt Injection & Unbounded Blast Radius:**
-   - Operating as an unconstrained God-mode account with zero domain boundaries, the agent cheerfully answered off-topic questions (like diabetes dosing and Boston weekend weather forecasts for `PT-905`), leaving the core clinical infrastructure wide open to prompt injection and mission drift.
-
-> [!IMPORTANT]
-> **Total Initial CISO Statutory Liability: $2,200,000 USD.** Your mission in this lab is to refactor this architecture and drive that liability down to **$0**!
+**Version:** `1.0.2` · **Region tested:** `us-east1` · **ADK:** `2.5.0` · **aiplatform:** `1.162.0`
 
 ---
 
-## 3. Plain-English Glossary Table (No Medical Degree Needed!)
+## What You Get
 
-As a Cloud Security Architect or Software Engineer, use this translation matrix to map healthcare terms directly to familiar security and distributed systems concepts:
+Every agent deployed through this foundation automatically receives:
 
-| Term in Lab | What It Means in Plain English | How to Think About It as a Security Architect |
-| :--- | :--- | :--- |
-| **HIPAA** | US patient privacy law protecting personal identifiers (Names, SSNs, MRNs, Dates of Birth, Street Addresses). | **Perimeter Data Loss Prevention (DLP):** Mandatory input sanitization that strips direct identifiers before data touches downstream models. |
-| **GINA (Genetic Information Nondiscrimination Act)** | US federal law making it illegal to use inherited family DNA when making eligibility or employment decisions. | **Data Segregation & Quarantine:** Cryptographically isolate inherited family data into a separate compliance vault so evaluators cannot access it. |
-| **Tumor Mutation (*Somatic Variant*, e.g., `EGFR`, `KRAS`, `BRAF`)** | DNA changes found *only inside the cancer tumor* that the clinical trial is designed to treat. | **Legitimate Screening Payload:** Authorized criteria attributes that must be verified against trial requirements. |
-| **Inherited Family DNA (*Germline Variant*, e.g., `BRCA1/2`, `MLH1`, `PALB2`)** | Hereditary DNA changes passed down from parents, present in normal blood cells throughout life. | **Protected Secret / Toxic Data:** Restricted sensitive attributes that must be intercepted and quarantined at the door. |
-| **Medication Safety & Drug Cooldown Timers (*Pharmacovigilance & Washout Period*)** | The minimum number of days a patient must wait after stopping an old medication (like *Keytruda* or *Tagrisso*) before starting a new trial drug to prevent toxic drug clashes. | **Time-Based Rate Limiting / Session Cooldown:** Temporal access policy requiring an elapsed time interval (`current_date - last_dose_date >= required_washout_days`). |
-| **Daily Physical Activity Score (*ECOG Performance Status*, `0` to `5`)** | Standard activity score from `0` to `5`, where **`0` means 100% healthy and fully active**, `2` is the maximum allowed for the trial, and `3+` means too sick. | **Boundary Condition Validation Bug:** Watch out for the **Python Falsy-Zero Bug** (`if not ecog_score:`), which treats `0` as falsy `False` instead of valid integer `0` and wrongly rejects the healthiest patients! |
-| **Standardizing Kidney Lab Units (*FHIR R4 & Serum Creatinine*)** | A blood test measuring kidney health (*serum creatinine*). Values must be converted from US units (`mg/dL`) to metric (`umol/L` by multiplying by `88.42`), checked against `<= 1.50 mg/dL`, and legacy units like `1.0 mg%` must be flagged. | **Input Schema Validation & Normalization:** Standardize payload units across microservices; trigger validation errors on malformed legacy units. |
-| **ADK (Google Agent Development Kit)** | Google's framework for building modular, decoupled AI agents with structured tools and typed state management. | **Microservices Framework for Agents:** Enables modular separation of concerns instead of one bloated monolithic process. |
-| **FastMCP (Model Context Protocol)** | An open protocol connecting AI agents to exact, deterministic Python calculator tools. | **Remote Procedure Call (RPC) for Tools:** Offloads critical math and data transforms to deterministic backend code instead of relying on AI guesswork in free text. |
-| **HITL (Human-in-the-Loop / `PENDING_REVIEW`)** | A safety circuit-breaker that pauses the AI and routes the file to a human doctor whenever confidence is low (`< 85%`), lab units are unreadable, or active drug side effects exist. | **Circuit-Breaker / Manual Approval Gate:** CI/CD-style approval pipeline requiring human sign-off on high-risk or ambiguous requests. |
-| **OIDC (OpenID Connect) Bearer Token** | Cryptographic JSON Web Token (JWT) proving which Service Account is calling a microservice. | **Mutual Authentication & Least Privilege:** Restricts service-to-service calls using cryptographic audience claims (`aud=https://agents.aegis.health/...`). |
-| **AI Guesswork in Free Text (*formerly "Stochastic verification"* )** | Asking an LLM to calculate numbers, dates, or boolean rules inside its generative text response. | **Non-Deterministic Execution Risk:** Flawed pattern where identical inputs can yield conflicting outputs depending on model temperature. |
-| **Exact Code Rules / Safety Gate (*formerly "Deterministic boolean gating invariant"* )** | Hardcoded, deterministic Python logic (`all_passed()`) that evaluates structured boolean flags. | **Hardened Policy Engine (PDP/PEP):** Guarantees zero hallucination in critical security and compliance decisions. |
-| **Matching Tumor Mutation (*formerly "Biomarker concordance"* )** | Verifying that the patient's verified tumor mutation matches what the trial requires. | **Attribute Whitelist Matching:** Exact payload validation against authorized criteria. |
-| **Off-Topic Questions (*formerly "Off-label pharmacology queries"* )** | Requests unrelated to trial eligibility (e.g., asking for diabetes medication dosages or weekend weather forecasts). | **Prompt Injection / Mission Drift:** Unauthorized out-of-scope requests that perimeter guardrails must reject. |
+| Layer | What it does |
+|---|---|
+| **Agent Gateway (Ingress)** | All inbound traffic screened — Model Armor + IAP identity validation before it reaches your agent |
+| **Agent Gateway (Egress)** | All outbound traffic (LLM calls, tool calls) routed through the gateway — unlisted hosts are blocked at the PSC routing level |
+| **PSC (Private Service Connect)** | Agents reach Vertex AI and other GCP APIs without traversing the public internet |
+| **Model Armor** | Dual extensions on ingress + egress: prompt injection, jailbreak, PII, malicious URL, RAI filters. Ingress fail-closed; egress fail-open |
+| **DLP Templates** | Inspect + deidentify templates wired into Model Armor: SSN, email, API keys, credentials, medical codes |
+| **IAP** | Ingress: fail-closed identity validation (caller must hold `roles/iap.egressor`). Egress: audit-only DRY_RUN mode |
+| **SGP (Semantic Governance)** | Per-agent NLC (Natural Language Constraint) policy — blocks off-topic or disallowed requests semantically, not just by keyword |
+| **3 Org Policies** | `AgentGatewayConfig`, `AgentIdentity`, `OtelConfig` enforced at project level — any RE deploy without gateway config is rejected |
+| **Observability** | Token usage dashboards, gateway security dashboards, org-level rollup, BigQuery audit sink, 6 token alert policies |
+| **GatewayAgent SDK** | One import in `agent.py` handles all compliance boilerplate — OTEL telemetry, PSC-compatible endpoint routing, global Gemini 3.x support |
+| **Antigravity Skills** | Your AI coding assistant knows exactly how to set up, maintain, debug, and extend every layer — including A2A multi-agent |
 
 ---
 
-## 4. Side-by-Side Comparison Table
+## Architecture Overview
 
-Here is how the broken monolithic prototype compares to the production-ready 5-agent mesh you will construct:
-
-| Architecture Dimension | Broken Mega Agent (`TrialShield POC Agent`) | Target 5-Agent System (`TrialShield Production`) |
-| :--- | :--- | :--- |
-| **Agent Topology** | 1 Monolithic Agent handling intake, genetics, drug cooldowns, labs, and decisions in one prompt. | **5 Decoupled Agents:**<br>1. **Oncology Trial Coordinator** (`TrialMatchingSupervisor`)<br>2. **Tumor Genetics Reviewer** (`GenomicBiomarkerAgent`)<br>3. **Medication Safety Reviewer** (`PharmacovigilanceAgent`)<br>4. **Patient Health & Lab Reviewer** (`ClinicalCohortAgent`)<br>5. **Final Trial Decision Maker** (`TrialEligibilitySynthesizer`) |
-| **Identity & IAM Access** | Over-permissioned God-mode service account (`sa-legacy-god-mode`) with full project access. | Least-privilege per-agent service accounts authenticated with audience-restricted **OIDC Bearer Tokens**. |
-| **HIPAA Patient Privacy** | Naive street-address regex (`\b\d+\s+[A-Za-z]+\b`) that redacts `"30 days"` into `[REDACTED_STREET_ADDRESS]` while leaking SSNs, MRNs, and patient names. | Two-stage pre-model interceptor scrubbing all 18 HIPAA direct identifiers while safely preserving clinical treatment durations (`"30 days"`). |
-| **GINA Genetic Quarantine** | Zero isolation; confuses inherited family DNA (`BRCA2`) with tumor targets, wrongly approving ineligible patient `PT-704`. | Cryptographic SHA-256 quarantine vault that isolates inherited family DNA (`BRCA1/2`, `PALB2`) while forwarding tumor mutations (`EGFR`, `KRAS`, `BRAF`). |
-| **Calculations & Conversions** | **AI guesswork in free text:** attempts to calculate drug cooldown days and lab units inside LLM prose; fails on drug aliases (`PT-901`). | **FastMCP Calculator Tools:** deterministic Python functions calculating exact drug clearance half-lives and converting kidney lab units. |
-| **Decision Logic & Determinism** | Stochastic text generation; outputs unstructured English explanations with unpredictable criteria evaluation. | **Exact code rules / Safety gate:** deterministic Python rule (`all_passed()`) evaluated over strongly-typed Pydantic data contracts. |
-| **Human Safety Net (HITL)** | Binary only (`ELIGIBLE` / `INELIGIBLE`); hardcodes `human_intervention_required = False`, blindly enrolling toxic patients (`PT-707`). | **Mandatory `PENDING_REVIEW` Circuit-Breaker:** automatically escalates to a human doctor if confidence `< 85%`, lab units are unreadable, or active toxicities appear. |
-| **Domain Scope & Guardrails** | Zero perimeter defense; happily dispenses diabetes drug dosing and Boston weather forecasts (`PT-905`). | Strict intake boundary guardrails; automatically generates audited refusal notices for out-of-scope requests. |
-
----
-
-## 5. Visual Architecture Diagrams
-
-### Diagram 1: The Broken Mega Agent (Vulnerable Architecture)
-
-Notice the single God-mode account, the naive regex damaging clinical text, the confusion between family DNA and tumor mutations, the falsy-zero bug, and the absence of any human review safety net:
-
-```mermaid
-flowchart TD
-    subgraph Client["Clinical Intake Portal"]
-        Patient["Patient Record (PT-701 to PT-905)<br>Name, SSN, Family DNA, Tumor DNA, Labs"]
-    end
-
-    subgraph Monolith["Vulnerable Monolithic Agent (TrialShield POC Agent)"]
-        direction TB
-        GodMode["1. God-Mode Service Account<br>sa-legacy-god-mode@prod-proj-ge<br>(Unbounded Blast Radius)"]
-        RegexDamage["2. '30 days' Street-Address Filter Bug<br>Redacts '30 days' to [REDACTED_STREET_ADDRESS]<br>Leaks SSNs, MRNs, and Patient Names"]
-        GINAConfusion["3. Family DNA Mix-Up (GINA Breach)<br>Confuses Inherited BRCA2 with Tumor EGFR<br>Wrongly Approves Ineligible Patient PT-704"]
-        FalsyZero["4. ECOG 0 Falsy-Zero Bug<br>'if not ecog_score:' treats 0 as False<br>Wrongly Rejects Healthiest Patients (PT-708)"]
-        BinaryDecision["5. Binary Approve/Deny Only (No Human Review)<br>No PENDING_REVIEW Safety Net<br>Approves Active Lung Inflammation on PT-707"]
-        OffTopic["6. Zero Scope Guardrails<br>Answers Off-Topic Prompts (Diabetes and Weather)"]
-    end
-
-    Patient -->|Raw Unsanitized Notes| Monolith
-    Monolith -->|Critical Violations| AuditAlert["CISO Stop-Work Order & Regulatory Penalties:<br>HIPAA Privacy Violations: $1.9M+ Penalty Cap<br>GINA Genetic Discrimination: $300k Damage Cap<br>Total Initial Statutory Exposure: $2,200,000"]
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        Agent Gateway Foundation                              │
+│                                                                              │
+│  User / Client                                                               │
+│       │                                                                      │
+│       ▼                                                                      │
+│  ┌─────────────────────┐                                                     │
+│  │   Ingress Gateway   │  ← IAP (fail-closed) + Model Armor (fail-closed)   │
+│  └─────────┬───────────┘                                                     │
+│            │ authorized request                                              │
+│            ▼                                                                 │
+│  ┌─────────────────────┐                                                     │
+│  │  Reasoning Engine   │  ← Your agent (AdkApp + GatewayAgent SDK)          │
+│  │  (Vertex AI RE)     │    WIF identity · org policies enforced at deploy   │
+│  └─────────┬───────────┘                                                     │
+│            │ outbound (LLM / tools)                                          │
+│            ▼                                                                 │
+│  ┌─────────────────────┐                                                     │
+│  │   Egress Gateway    │  ← Model Armor (fail-open) + SGP + IAP DRY_RUN     │
+│  └─────────┬───────────┘                                                     │
+│            │ PSC route (allowlisted hosts only)                              │
+│            ▼                                                                 │
+│  aiplatform.googleapis.com  ·  your-api.example.com  ·  (others allowlisted)│
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Diagram 2: Your Target 5-Agent System (Hardened Architecture)
+## Three Ways to Adopt
 
-Notice how the perimeter interceptor scrubs privacy data and quarantines family DNA before invoking the mesh. The coordinator delegates to 3 specialized domain reviewers powered by FastMCP calculator tools. Finally, the decision maker enforces a strict two-gate sequence: **Gate 1: Human Review Check (`PENDING_REVIEW`) FIRST**, followed by **Gate 2: Approve/Deny Check SECOND**:
+### Path A — Standalone (new GCP project, no existing agent)
+Clone this repo, fill in `terraform.tfvars`, run `deploy_all.sh`.
+Your agent code goes in `agents/my-agent/`.
 
-```mermaid
-flowchart TD
-    subgraph Perimeter["Perimeter Security Interceptor (Task 1)"]
-        RawIntake["Raw Patient Notes"] --> SafeHarbor["HIPAA Patient Privacy Sanitizer<br>Scrubs SSN, MRN, Name, Street Address<br>Preserves Treatment Durations ('30 days')"]
-        SafeHarbor --> GINAQuarantine["GINA Family DNA Quarantine<br>Vaults Inherited BRCA1/2, MLH1, PALB2<br>Forwards Tumor Mutations: EGFR, KRAS, BRAF"]
-        GINAQuarantine --> Envelope["ClinicalIntakeEnvelope<br>(Clean Pydantic Data Contract)"]
-    end
+### Path B — Sidecar (existing GitHub repo + existing agent) ← recommended for teams
+Add this as a **git submodule** inside your existing repo.
+Your agent code stays where it is. Use `--agent-path` to point the deploy script at it.
 
-    subgraph CoordinatorMesh["1. Oncology Trial Coordinator (Task 4 and 5)"]
-        Envelope --> Coordinator["Oncology Trial Coordinator<br>(TrialMatchingSupervisor)<br>Authenticated via OIDC Bearer Token"]
-        Coordinator --> ScopeCheck{"Off-Topic Query?<br>(e.g., Weather or Diabetes)"}
-        ScopeCheck -->|Yes| Refusal["Audited Refusal Notice<br>(Rejects PT-905 Safely)"]
-    end
+### Path C — Gitignored Subfolder (no submodule complexity) ← simplest
+One-time `git clone` into a `foundation/` subfolder of your team repo. Gitignore it.
+Everything stays local — no ongoing git relationship with the foundation.
 
-    subgraph DomainReviewers["Specialized Domain Reviewers (Task 4 and 5)"]
-        ScopeCheck -->|Tumor Genetics| GenomicAgent["2. Tumor Genetics Reviewer<br>(GenomicBiomarkerAgent)<br>Validates Tumor Mutations<br>Ignores Quarantined Family DNA"]
-        ScopeCheck -->|Medication History| PVAgent["3. Medication Safety Reviewer<br>(PharmacovigilanceAgent)<br>Checks Drug Cooldown Timers<br>Flags Active Side Effects"]
-        ScopeCheck -->|Labs and Health Score| CohortAgent["4. Patient Health & Lab Reviewer<br>(ClinicalCohortAgent)<br>Validates Physical Activity Score<br>Checks Kidney Lab Values"]
-    end
+---
 
-    subgraph FastMCPTools["FastMCP Deterministic Calculators (Task 2)"]
-        PVAgent <--> MCPWashout["FastMCP Medication Cooldown Calculator<br>Calculates Drug Half-Life Timelines<br>Flags Borderline Lung Inflammation"]
-        CohortAgent <--> MCPFHIR["FastMCP Kidney Lab Normalizer<br>Converts mg/dL to umol/L<br>Detects Unreadable 'mg%' Units<br>Zero-Safe Physical Activity Parser"]
-    end
+## Prerequisites
 
-    subgraph DecisionMaker["5. Final Trial Decision Maker (Task 3)"]
-        GenomicAgent --> WorkerReports["Domain Worker Reports<br>(Genomics, Medication, Labs)"]
-        PVAgent --> WorkerReports
-        CohortAgent --> WorkerReports
-        WorkerReports --> Synthesizer["Final Trial Decision Maker<br>(TrialEligibilitySynthesizer)"]
-        
-        Synthesizer --> Gate1{"GATE 1: Human Review Check FIRST<br>Confidence < 0.85?<br>Unreadable Lab Units ('mg%')?<br>Active Toxicity / Lung Inflammation?"}
-        
-        Gate1 -->|Flag Tripped| HumanReview["PENDING_REVIEW<br>(human_intervention_required = True)<br>Routes to Human Doctor"]
-        Gate1 -->|All Clean| Gate2{"GATE 2: Approve / Deny SECOND<br>Exact Code Rules: all_passed()?<br>Tumor Mutation Match?<br>Drug Cooldown Met?<br>Activity Score <= 2 and Kidney Normal?"}
-        
-        Gate2 -->|All Pass| Approved["ELIGIBLE<br>(human_intervention_required = False)"]
-        Gate2 -->|Objective Fail| Denied["INELIGIBLE<br>(human_intervention_required = False)"]
-    end
+| Tool | Version |
+|---|---|
+| `terraform` | ≥ 1.5 · [Install](https://developer.hashicorp.com/terraform/install) |
+| `gcloud` CLI | latest · [Install](https://cloud.google.com/sdk/docs/install) |
+| `python3` | ≥ 3.11 |
+
+**GCP IAM requirements:**
+
+| Scope | Role needed |
+|---|---|
+| Project | `roles/owner` OR (`roles/editor` + `roles/networkservices.admin`) |
+| **Org level** | `roles/orgpolicy.policyAdmin` ← **most teams are missing this** |
+
+> [!CAUTION]
+> `roles/orgpolicy.policyAdmin` must be granted at the **GCP Organization level**,
+> not the project level. This is the #1 first-deploy failure. If your account
+> doesn't have it, ask your GCP org admin.
+
+**Authenticate before starting:**
+```bash
+gcloud auth application-default login
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+```
+
+**Bootstrap APIs (one-time, idempotent):**
+```bash
+gcloud services enable \
+  cloudresourcemanager.googleapis.com \
+  agentregistry.googleapis.com \
+  --project=YOUR_PROJECT_ID
 ```
 
 ---
 
-## 6. Pre-Built "Lego Blocks" Toolkit (`lego_blocks/`)
+## Path A — Standalone Setup
 
-**Do not worry about memorizing medical rules!** You do not need to memorize oncology clinical trial protocols, calculate pharmaceutical half-lives, or write complex biochemical formulas from scratch. 
+### 1. Clone and configure
 
-All clinical logic, medical math, regular expressions, and security validation routines are already written and thoroughly tested for you in the [`lego_blocks/`](lego_blocks/) directory. Your job as a Cloud Security Architect is simply to wire these pre-built blocks into the appropriate agent and server files:
+```bash
+git clone https://github.com/GCP-Architecture-Guides/Agent-Gateway-Foundation.git
+cd Agent-Gateway-Foundation
 
-| Lego Block Module | File Path | What It Does in Plain English | Assigned Lab Task |
-| :--- | :--- | :--- | :--- |
-| **Block 1: HIPAA & GINA Rules** | [`lego_blocks/block_1_hipaa_gina_rules.py`](lego_blocks/block_1_hipaa_gina_rules.py) | **Privacy & Family DNA Shield:** Scrubs direct patient identifiers (SSNs, names, MRNs) while preserving treatment durations like `"30 days"`. Isolates inherited family DNA (`BRCA1/2`, `PALB2`) into a cryptographic SHA-256 quarantine vault while keeping tumor mutations (`EGFR`, `KRAS`, `BRAF`) in the active payload. | **Task 1** |
-| **Block 2: FastMCP Washout Engine** | [`lego_blocks/block_2_fastmcp_washout.py`](lego_blocks/block_2_fastmcp_washout.py) | **Medication Cooldown Calculator:** Calculates exact clearance days for previous cancer medications (Tagrisso/osimertinib, Keytruda/pembrolizumab, Opdivo/nivolumab) against trial cooldown rules, eliminating AI arithmetic guesswork. | **Task 2** |
-| **Block 3: FHIR Lab Normalizer** | [`lego_blocks/block_3_fhir_lab_normalizer.py`](lego_blocks/block_3_fhir_lab_normalizer.py) | **Kidney Lab & Activity Score Normalizer:** Standardizes kidney lab values (`mg/dL` to `umol/L`), flags corrupted legacy units (`1.0 mg%`) for human review, and fixes the Python falsy-zero bug so `ECOG 0` is recognized as fully healthy. | **Task 2** |
-| **Block 4: MedDRA Adverse Events** | [`lego_blocks/block_4_meddra_adverse_events.py`](lego_blocks/block_4_meddra_adverse_events.py) | **Medication Side-Effect Classifier:** Maps patient side effects to standardized safety grades (CTCAE) and flags borderline dangers (like Grade 2 lung inflammation) for mandatory human doctor triage. | **Task 2 & Task 3** |
-| **Block 5: HITL Synthesizer** | [`lego_blocks/block_5_hitl_synthesizer.py`](lego_blocks/block_5_hitl_synthesizer.py) | **Two-Gate Decision Engine & Human Safety Net:** Evaluates Gate 1 (Human Review check FIRST for low confidence `< 0.85`, unreadable lab units, or active toxicities -> `PENDING_REVIEW`) and Gate 2 (Approve/Deny check SECOND via exact code rules `all_passed()` -> `ELIGIBLE` / `INELIGIBLE`). | **Task 3** |
-| **Block 6: OIDC Auth Guard** | [`lego_blocks/block_6_oidc_auth_guard.py`](lego_blocks/block_6_oidc_auth_guard.py) | **Least-Privilege IAM & Token Guard:** Validates cryptographic OIDC bearer tokens, blocks over-permissioned God-mode accounts (`sa-legacy-god-mode`), and enforces strict calling topology across the agent mesh. | **Task 5** |
+cp terraform.tfvars.example terraform.tfvars
+# terraform.tfvars is gitignored — never committed
+```
 
----
+Edit `terraform.tfvars` — minimum required fields:
 
-## 7. Your 5 Lab Challenges (100 Points Total)
+```hcl
+project_id      = "your-gcp-project-id"
+organization_id = "123456789012"         # gcloud organizations list
+location        = "us-east1"
+prefix          = "myteam"              # short prefix, no spaces, no hyphens
+agent_name      = "my_agent"            # Python identifier: underscores only
 
-Work through each challenge sequentially. You can check your progress at any time with the autograder commands, or request progressive hints if you get stuck.
+allowed_egress_hosts = [
+  "api.example.com",   # every external host your agent needs to call
+]
 
----
+sgp_nlc_constraint = <<-EOT
+  This agent helps with [YOUR TOPIC]. It may only answer questions about
+  [ALLOWED SCOPE].
+EOT
+```
 
-### Task 1: Pre-Model Perimeter Interception (HIPAA Safe Harbor & GINA Title II)
-- **Points:** 15 points
-- **What's Broken:** The monolithic agent lets raw patient names, SSNs, and family genetics flow straight into the AI prompt. Worse, its clumsy street regex redacts clinical timelines like `"30 days"` into `[REDACTED_STREET_ADDRESS] ago`, breaking drug safety checks downstream.
-- **Your Goal with AGY:** 
-  1. Open [`agents/trial_matching_supervisor/routing_tools.py`](agents/trial_matching_supervisor/routing_tools.py).
-  2. Implement `intercept_and_deidentify_intake` by wiring in [`lego_blocks/block_1_hipaa_gina_rules.py`](lego_blocks/block_1_hipaa_gina_rules.py).
-  3. Ensure all direct identifiers (SSN, MRN, Name, DOB) are redacted, clinical durations like `"30 days"` remain untouched, and inherited family DNA (`BRCA1/2`, `PALB2`) is segregated into the quarantine field of the [`ClinicalIntakeEnvelope`](app/contracts.py).
-- **How to Check Your Score:** `make verify-task-1`
-- **Need a Hint?** Run `make hint TASK=1 LEVEL=1` for an architectural nudge, or `make hint TASK=1 LEVEL=2` for a guided prompt checklist.
+### 2. Add your agent code
 
----
+```
+agents/
+└── my-agent/
+    ├── agent.py          ← your agent logic
+    └── requirements.txt  ← pinned versions required
+```
 
-### Task 2: FastMCP Grounding Tools (Medication Cooldown & Lab Normalization)
-- **Points:** 20 points
-- **What's Broken:** The monolithic agent guesses drug cooldown days using free-text string matching, failing on brand-generic names like Tagrisso vs. osimertinib (`PT-901`). It also falls into Python's `if not ecog_score:` falsy-zero trap (`PT-708`) by rejecting the healthiest patients, and completely ignores corrupted legacy lab units like `1.0 mg%` (`PT-703`, `PT-903`).
-- **Your Goal with AGY:**
-  1. Open [`mcp_servers/meddra_ontology/server.py`](mcp_servers/meddra_ontology/server.py) and wire in `mcp_calculate_drug_clearance` using [`lego_blocks/block_2_fastmcp_washout.py`](lego_blocks/block_2_fastmcp_washout.py).
-  2. Open [`mcp_servers/fhir_lab_normalizer/server.py`](mcp_servers/fhir_lab_normalizer/server.py) and wire in `mcp_normalize_renal_labs` and `mcp_extract_ecog_score` using [`lego_blocks/block_3_fhir_lab_normalizer.py`](lego_blocks/block_3_fhir_lab_normalizer.py).
-  3. Ensure `ECOG 0` is safely parsed as fully active (`0`), kidney units are converted to metric (`umol/L`), and legacy `mg%` units trigger a lower confidence score for human triage.
-- **How to Check Your Score:** `make verify-task-2`
-- **Need a Hint?** Run `make hint TASK=2 LEVEL=1` or `make hint TASK=2 LEVEL=2`.
+Use the `GatewayAgent` SDK — it handles all compliance automatically:
 
----
+```python
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "lib"))
+from gateway_agent import GatewayAgent
 
-### Task 3: Deterministic Decision Synthesis & Mandatory Human-in-the-Loop Gate
-- **Points:** 25 points
-- **What's Broken:** The monolithic agent only knows binary `ELIGIBLE` or `INELIGIBLE` verdicts and hardcodes `human_intervention_required = False`. It recklessly approves patient `PT-707` despite active Grade 2 lung inflammation, and wrongly rejects patient `PT-703` whose biopsy confidence was simply borderline.
-- **Your Goal with AGY:**
-  1. Open [`agents/trial_eligibility_synthesizer/synthesis_tools.py`](agents/trial_eligibility_synthesizer/synthesis_tools.py).
-  2. Implement `evaluate_trial_eligibility` using [`lego_blocks/block_5_hitl_synthesizer.py`](lego_blocks/block_5_hitl_synthesizer.py).
-  3. Enforce the two-gate evaluation order:
-     - **Gate 1 (Human Review Check FIRST):** If confidence `< 0.85`, unreadable lab units exist (`unparseable_labs=True`), or active side effects are flagged (`borderline_safety_flag=True`), return `PENDING_REVIEW` with `human_intervention_required = True`.
-     - **Gate 2 (Approve/Deny Check SECOND):** If all Gate 1 checks pass clean, evaluate exact code rules (`all_passed()`). If all criteria pass, return `ELIGIBLE`; if any objective criteria fail, return `INELIGIBLE` (with `human_intervention_required = False`).
-- **How to Check Your Score:** `make verify-task-3`
-- **Need a Hint?** Run `make hint TASK=3 LEVEL=1` or `make hint TASK=3 LEVEL=2`.
+root_agent = GatewayAgent(
+    name="my_agent",
+    model="gemini-2.5-flash",          # regional endpoint
+    # model="gemini-3.5-flash",        # global endpoint — use GlobalGemini wrapper
+    description="My agent.",
+    instruction="You are a helpful assistant.",
+    tools=[],
+)
+```
 
----
+### 3. Deploy
 
-### Task 4: Decouple into 5 ADK Sub-Agents with Typed Pydantic Contracts
-- **Points:** 20 points
-- **What's Broken:** All clinical logic and tools are crammed into a single monolithic prompt, creating an unmaintainable codebase with an unbounded blast radius.
-- **Your Goal with AGY:**
-  1. Instantiate each of the 5 specialized sub-agents in [`agents/`](agents/) using model `gemini-3.7-flash`:
-     - **Oncology Trial Coordinator** ([`agents/trial_matching_supervisor/agent.py`](agents/trial_matching_supervisor/agent.py))
-     - **Tumor Genetics Reviewer** ([`agents/genomic_biomarker/biomarker_agent.py`](agents/genomic_biomarker/biomarker_agent.py))
-     - **Medication Safety Reviewer** ([`agents/pharmacovigilance/pv_agent.py`](agents/pharmacovigilance/pv_agent.py))
-     - **Patient Health & Lab Reviewer** ([`agents/clinical_cohort/cohort_agent.py`](agents/clinical_cohort/cohort_agent.py))
-     - **Final Trial Decision Maker** ([`agents/trial_eligibility_synthesizer/synthesizer_agent.py`](agents/trial_eligibility_synthesizer/synthesizer_agent.py))
-  2. Bind domain-specific FastMCP and routing tools to each corresponding agent instance.
-  3. Verify that all agents communicate using the strongly-typed Pydantic contracts in [`app/contracts.py`](app/contracts.py).
-- **How to Check Your Score:** `make verify-task-4`
-- **Need a Hint?** Run `make hint TASK=4 LEVEL=1` or `make hint TASK=4 LEVEL=2`.
+```bash
+bash deploy_all.sh
+```
 
----
+**What happens:**
 
-### Task 5: Least Privilege IAM & OIDC Bearer Token Enforcement
-- **Points:** 20 points
-- **What's Broken:** The system executes under a single God-mode account (`sa-legacy-god-mode`), and when asked off-topic questions about diabetes medication or Boston weather (`PT-905`), it wastes tokens answering them instead of refusing.
-- **Your Goal with AGY:**
-  1. Open [`agents/trial_matching_supervisor/routing_tools.py`](agents/trial_matching_supervisor/routing_tools.py).
-  2. Implement `verify_mesh_caller_authorization` using [`lego_blocks/block_6_oidc_auth_guard.py`](lego_blocks/block_6_oidc_auth_guard.py).
-  3. Strictly reject calls from `sa-legacy-god-mode`, validate downscoped OIDC tokens against target audiences (`https://agents.aegis.health/...`), enforce the authorized calling topology, and ensure out-of-scope prompts return audited refusal notices.
-- **How to Check Your Score:** `make verify-task-5`
-- **Need a Hint?** Run `make hint TASK=5 LEVEL=1` or `make hint TASK=5 LEVEL=2`.
+| Phase | Script | Duration | What it does |
+|---|---|---|---|
+| **Infra** | `terraform apply` | ~10 min | VPC · PSC · Agent Gateways · Model Armor · IAP · SGP engine · DLP · Org Policies · BigQuery sink · Dashboards |
+| **Agent** | `deploy_chat_agent.sh` | ~5 min | Packages + deploys your agent to Vertex AI RE · strips contextSpec · grants 7 IAM roles to WIF identity |
+| **SGP** | `create_sgp_policy.sh` | ~1 min | Registers NLC topic constraint in Agent Registry |
+
+### 4. Tear down
+
+```bash
+bash destroy_all.sh
+```
 
 ---
 
-## 8. Quick Command Cheat Sheet & Live Cloud Resources (`prod-proj-ge`)
+## Multi-Agent A2A Mesh — Food Court Reference Implementation
 
-### Make Command Reference
+This foundation ships with a **production-validated 4-agent A2A mesh** as a reference implementation. It demonstrates the complete pattern for building multi-agent systems where specialists are dynamically discovered — zero hardcoded RE IDs.
 
-All grading, attacking, testing, and hint commands are wired into the project [`Makefile`](Makefile):
+### Architecture
 
-| Command | What It Does |
-| :--- | :--- |
-| `make scoreboard` | **Display the Interactive CISO Scoreboard:** Shows your autograder score (0-100 pts) and calculates remaining statutory liability ($2.2M down to $0). |
-| `make attack-mega-agent` | **Execute 13 CISO Attack Prompts:** Runs adversarial test cases against the live vulnerable Reasoning Engine to reproduce all 6 audit failures. |
-| `make verify-task-1` | **Verify Task 1 (15 pts):** Tests HIPAA direct identifier scrubbing and GINA family DNA quarantine. |
-| `make verify-task-2` | **Verify Task 2 (20 pts):** Tests FastMCP medication cooldown math, kidney lab normalization, and ECOG 0 falsy-zero fix. |
-| `make verify-task-3` | **Verify Task 3 (25 pts):** Tests Gate 1 (Human Review FIRST) and Gate 2 (Approve/Deny SECOND) deterministic decision logic. |
-| `make verify-task-4` | **Verify Task 4 (20 pts):** Tests that all 5 ADK sub-agents are properly instantiated with tools and typed contracts. |
-| `make verify-task-5` | **Verify Task 5 (20 pts):** Tests rejection of God-mode identities and enforcement of OIDC bearer token audiences. |
-| `make verify-all` | **Run Complete Autograder Suite (100 pts):** Executes all 5 checkpoints sequentially. |
-| `make hint TASK=X LEVEL=Y` | **Display Progressive Hints:** `LEVEL=1` provides an architectural concept nudge; `LEVEL=2` provides an AGY prompting strategy. |
-| `make verify-bonus` | **Verify Fast-Finisher Bonus (+10 pts):** Tests prompt injection and jailbreak defense using Google Cloud Model Armor. |
-| `make clean` | **Clean Environment:** Removes temporary Python bytecode and test cache files. |
+```
+User
+  │
+  ▼
+Ingress Gateway
+  │  IAP (identity check) + Model Armor (content scan)
+  ▼
+store_concierge (Orchestrator RE)
+  │
+  │  1. Classify user intent (LLM)
+  │  2. Call specialist tool: call_pizza_agent() / call_burger_agent() / call_sushi_agent()
+  │  3. Discover specialist RE via labels (AgentRegistry.find capability=X)
+  │  4. Forward query via REST SSE → specialist RE
+  │
+  ├─────────────────────────────────────────────────────────────┐
+  │                               │                             │
+  ▼                               ▼                             ▼
+pizza_specialist RE         burger_specialist RE          sushi_specialist RE
+  │                               │                             │
+  └───────────────────────────────┴─────────────────────────────┘
+                                  │
+                            Egress Gateway
+                     Model Armor + SGP + IAP DRY_RUN
+                                  │
+                            PSC → aiplatform.googleapis.com
+                            (gemini-3.5-flash, global endpoint)
+```
+
+**Key design properties:**
+- **Zero hardcoded specialist URLs or RE IDs** — all discovery is runtime via `labels.capability`
+- **Adding a specialist = deploy + label** → orchestrator auto-discovers, no redeployment
+- **google-adk(a2a) classification** — 24 classMethods (13 ADK + 11 A2A protocol) applied post-deploy
+- **agentCard** on every RE — enables A2A badge in Vertex AI console
+- **WIF identity (7 roles)** — every RE has its own Workload Identity Federation principal
+
+### Agent Structure
+
+```
+agents/
+├── orchestrator/           ← Store Concierge — routes to specialists
+│   ├── agent.py            ← GatewayAgent + call_X_agent() tools + AgentRegistry discovery
+│   └── requirements.txt
+├── pizza-agent/            ← Pizza Specialist
+│   ├── agent.py            ← GatewayAgent + pizza ordering tools
+│   └── requirements.txt
+├── burger-agent/           ← Burger Specialist
+│   ├── agent.py
+│   └── requirements.txt
+└── sushi-agent/            ← Sushi Specialist
+    ├── agent.py
+    └── requirements.txt
+```
 
 ---
 
-### Live Google Cloud Resources (`prod-proj-ge`, `us-central1`)
+## Deploy Workflow — `deploy_all.sh`
 
-Both the vulnerable Mega Agent and the hardened reference multi-agent mesh are deployed and running live in Google Cloud Project `prod-proj-ge`:
+The main deploy script handles the full end-to-end flow for the A2A mesh.
+**`deploy_all.sh` is always the source of truth** — `destroy_all.sh` mirrors it exactly.
 
-#### 1. Live Broken POC Agent (Audit Target)
-- **Deployment Platform:** Vertex AI Agent Runtime (Reasoning Engine)
-- **Resource ID:** `projects/679847132899/locations/us-central1/reasoningEngines/2694371110929039360`
-- **Display Name:** `TrialShield POC Agent`
-- **Underlying Model:** `gemini-3.7-flash`
-- **Gemini Enterprise Registered Agent:**
-  - Collection: `default_collection`
-  - Engine: `gemini-enterprise-demo_1789999455608`
-  - Assistant: `default_assistant`
-  - Agent Resource: `projects/679847132899/locations/global/collections/default_collection/engines/gemini-enterprise-demo_1789999455608/assistants/default_assistant/agents/1277172829742580937`
-  - Description: `"Legacy v0.1 Monolithic TrialShield POC Agent (CISO Audit Target — Binary Approve/Deny Only)"`
+### Usage
 
-#### 2. Live Hardened 5-Agent Mesh (Reference Architecture)
-- **Production Reasoning Engine:** `projects/679847132899/locations/us-central1/reasoningEngines/7204215964345303040`
-- **Production Cloud Run Services:**
-  - Medication Safety Reviewer: `https://pharmacovigilance-679847132899.us-central1.run.app/a2a/pharmacovigilance`
-  - Patient Health & Lab Reviewer: `https://clinical-cohort-679847132899.us-central1.run.app/a2a/clinical-cohort`
-- **Side-by-Side Live Testing UI:**
-  - Visit the [Gemini Enterprise Console](https://console.cloud.google.com/gen-app-builder/engines) -> Select App `gemini-enterprise-demo_1789999455608` (`aegis-oncology-portal-app`) to compare responses between both systems live!
+```bash
+bash scripts/deploy_all.sh                    # default: classify + orchestrator + E2E + SGP
+bash scripts/deploy_all.sh --fresh           # full deploy from scratch (after destroy_all.sh)
+bash scripts/deploy_all.sh --skip-orchestrator  # classify + E2E + SGP only
+bash scripts/deploy_all.sh --skip-e2e           # skip E2E tests
+bash scripts/deploy_all.sh --skip-sgp           # skip SGP creation (re-deploy with existing SGPs)
+bash scripts/deploy_all.sh --e2e-only           # run E2E tests only (no deploy, no SGP)
+```
+
+### Step-by-Step Flow
+
+#### STEP 0 — Deploy Specialists `[--fresh only]`
+
+```bash
+# Triggered only with --fresh flag (after a full destroy_all.sh teardown)
+# Deploys each specialist independently via deploy_a2a_agents.sh
+for specialist in pizza burger sushi; do
+  bash scripts/deploy_a2a_agents.sh --only "$specialist"
+done
+```
+
+**Per-specialist what happens (via `deploy_a2a_agent.py`):**
+
+1. Load `agent.py` + `requirements.txt` from `agents/<specialist>/`
+2. Bundle with `cloudpickle.register_pickle_by_value` (cloudpickle caveat #16)
+3. `AgentEngine.create()` — `_gateway_patch.pth` intercepts and injects:
+   - `agentGatewayConfig.clientToAgentConfig` → ingress gateway
+   - `agentGatewayConfig.agentToAnywhereConfig` → egress gateway
+   - `identityType: AGENT_IDENTITY` (org policy requirement)
+   - OTEL env vars (org policy requirement)
+4. GCS upload: `gs://{project}-staging/{display_name}/`
+5. **POST-DEPLOY PATCHes** (all via REST API, no redeploy):
+   - `contextSpec → {}` — prevents DNS crash from auto-injected `memoryBankConfig`
+   - `classMethods = 24` (13 ADK + 11 A2A) + `agentFramework = google-adk`
+   - `agentCard` — url, skills, capabilities (required for A2A badge in console)
+   - `labels`: `role=specialist`, `team=food-court`, `capability={pizza|burger|sushi}-specialist`
+6. **IAM grants** — 7 roles to WIF principal:
+   - `roles/aiplatform.user` · `roles/cloudtrace.agent` · `roles/logging.logWriter`
+   - `roles/aiplatform.sessionUser` · `roles/serviceusage.serviceUsageConsumer`
+   - `roles/iap.egressor` · `roles/datastore.user`
+
+**ETA: ~10–15 minutes total (3 specialists × ~4 min each)**
 
 ---
 
-## 9. Red-Team Benchmark & CISO Audit Reports
+#### STEP 1 — Classify All Specialists as `google-adk(a2a)`
 
-For comprehensive technical and regulatory breakdowns, consult these audit reports:
-- **CISO Regulatory Liability & Vulnerability Audit:** [`CISO_AUDIT_REPORT.md`](CISO_AUDIT_REPORT.md) — Full legal and compliance risk analysis ($1.9M HIPAA + $300K GINA).
-- **Red-Team Failure Matrix & Test Cases:** [`POC_AGENT_FAILURE_REPORT.md`](POC_AGENT_FAILURE_REPORT.md) — Case-by-case breakdown of all 13 patient test runs (`PT-701` to `PT-905`).
-- **Benchmark Execution Script:** [`scripts/benchmark_poc_mega_agent.py`](scripts/benchmark_poc_mega_agent.py) (`make attack-mega-agent`)
-- **Raw Benchmark Results (JSON):** [`eval/poc_benchmark_results.json`](eval/poc_benchmark_results.json)
+```bash
+python scripts/patch_a2a_classification.py \
+  --project "$PROJECT_ID" --region "$REGION" --team food-court
+```
+
+- Discovers all REs with `labels.team=food-court`
+- Merges 24 classMethods (idempotent — won't duplicate)
+- Refreshes `agentCard` on each specialist
+
+This step runs even on a default (non-`--fresh`) deploy to ensure classification is current without redeploying the RE container.
+
+**ETA: < 30 seconds**
 
 ---
 
-## 10. Fast-Finisher Bonus Challenge: Google Cloud Model Armor (+10 Extra Credit Points)
+#### STEP 2 — Deploy `store_concierge` Orchestrator
 
-Finished all 5 core challenges early? Earn 10 extra credit points by adding an adversarial prompt shield:
-- **The Challenge:** Protect the clinical intake boundary from direct prompt injection, system prompt extraction, and DAN-style jailbreak persona evasion attacks using Google Cloud Model Armor (`sanitizeUserPrompt`) with an offline deterministic fallback.
-- **Verification Script:** [`scripts/verify_bonus_model_armor.py`](scripts/verify_bonus_model_armor.py) (`make verify-bonus`)
-- **Scoring Invariants:**
-  - `[2/2 pts]` Clean clinical intake notes pass unhindered without false alarms.
-  - `[3/3 pts]` Direct prompt injections are intercepted and safely quarantined.
-  - `[2/2 pts]` DAN persona adoption and jailbreak evasion attempts are blocked.
-  - `[3/3 pts]` Deterministic offline fallback maintains complete protection even without cloud network access.
+```bash
+python scripts/redeploy_orchestrator.py \
+  --project "$PROJECT_ID" --region "$REGION"
+```
+
+1. Record existing `store_concierge` REs (for blue/green cleanup post-deploy)
+2. `AgentEngine.create()` with `extra_packages=[lib/gateway_agent/]`
+   - `gateway_agent` package installed in the container at startup
+3. Delete old `store_concierge` RE(s) after new one is ACTIVE (blue/green swap)
+4. **POST-DEPLOY PATCHes:**
+   - `contextSpec → {}`
+   - `classMethods = 24` + `agentFramework = google-adk`
+   - `agentCard` — url, skills, capabilities
+   - `labels`: `role=orchestrator`, `team=food-court`, `capability=food-concierge`
+5. **IAM grants** — same 7 roles as specialists (org_id + project_num resolved dynamically via `gcloud`)
+6. **Re-run classification** — `patch_a2a_classification.py --team food-court`
+   (catches the newly deployed orchestrator in the same pass)
+
+**ETA: ~5 minutes**
+
+---
+
+#### STEP 3 — E2E Validation
+
+```bash
+python scripts/e2e_test.py --project "$PROJECT_ID" --region "$REGION"
+```
+
+Runs 17 queries across all 4 agents:
+
+| Agent | Queries | What's tested |
+|---|---|---|
+| `pizza_specialist` | 4 | Direct specialist queries |
+| `burger_specialist` | 4 | Direct specialist queries |
+| `sushi_specialist` | 4 | Direct specialist queries |
+| `store_concierge` | 5 | Orchestrator routing + direct answers |
+
+All queries go through the full gateway stack (ingress → RE → egress → Vertex AI).
+Pass = non-empty response for every query.
+
+**ETA: ~2 minutes**
+
+---
+
+#### STEP 4 — SGP NLC Policy Creation
+
+```bash
+# Waits 90s for Agent Registry auto-registration (RE must be ACTIVE first)
+sleep 90
+
+for agent in store_concierge pizza_specialist burger_specialist sushi_specialist; do
+  AGENT_NAME="$agent" bash scripts/create_sgp_policy.sh
+done
+```
+
+**Why 90s wait?** `AgentEngine.create()` returns when the RE reaches `ACTIVE` state. But Vertex AI auto-registers the RE in the **Agent Registry** asynchronously — typically 60–90 seconds after ACTIVE. `create_sgp_policy.sh` needs the Agent Registry entry to attach the NLC policy.
+
+**SGP is non-fatal** — agents function without it. It is the governance/content layer only. If SGP creation fails, the deploy script reports it as a warning with the retry command.
+
+**ETA: ~2 minutes (4 policies)**
+
+---
+
+### Deploy Flags Matrix
+
+| Flag | Step 0 (specialists) | Step 1 (classify) | Step 2 (orchestrator) | Step 3 (E2E) | Step 4 (SGP) |
+|---|---|---|---|---|---|
+| *(default)* | ❌ | ✅ | ✅ | ✅ | ✅ |
+| `--fresh` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `--skip-orchestrator` | ❌ | ✅ | ❌ | ✅ | ✅ |
+| `--skip-e2e` | ❌ | ✅ | ✅ | ❌ | ✅ |
+| `--skip-sgp` | ❌ | ✅ | ✅ | ✅ | ❌ |
+| `--e2e-only` | ❌ | ❌ | ❌ | ✅ | ❌ |
+
+> [!TIP]
+> **Most common re-deploy:** `bash scripts/deploy_all.sh` (no flags)
+> Reclassifies all specialists, redeploys orchestrator, runs E2E, recreates SGP.
+>
+> **After full teardown:** `bash scripts/deploy_all.sh --fresh`
+> Deploys everything from scratch.
+
+---
+
+## Destroy Workflow — `destroy_all.sh`
+
+Mirrors `deploy_all.sh` exactly — tears down every resource it creates.
+
+```bash
+bash destroy_all.sh          # interactive (prompts for confirmation)
+bash destroy_all.sh --force  # non-interactive (CI/CD)
+```
+
+**What gets deleted:**
+
+| Phase | Resources | How |
+|---|---|---|
+| **Phase 1 — SGP policies** | NLC policies for all 4 food-court agents | `gcloud beta ai semantic-governance-policies delete` |
+| **Phase 2 — Reasoning Engines** | All REs with `labels.team=food-court` (pizza, burger, sushi, store_concierge) | REST API delete with `?force=true` |
+| **Phase 3 — GCS staging** | `gs://{project}-staging/{agent_name}/` for all 4 agents | `gsutil -m rm -r` |
+| **Phase 4 — Local cleanup** | `__pycache__`, `*.pyc`, leftover `food_court_backend.py` | `find + rm` |
+
+> [!NOTE]
+> `destroy_all.sh` does **NOT** run `terraform destroy` — infrastructure (gateways, VPC, Model Armor) stays up.
+> Terraform teardown is intentionally manual to prevent accidental infra destruction.
+> Run `terraform destroy` separately when you want to remove the full stack.
+
+---
+
+## Adding a New Specialist (Zero-Touch Discovery)
+
+1. **Create the agent:**
+   ```
+   agents/my-specialist/
+   ├── agent.py          ← GatewayAgent + your specialist tools
+   └── requirements.txt  ← pinned deps
+   ```
+
+2. **Add deploy entry to `scripts/deploy_a2a_agents.sh`:**
+   ```bash
+   if [[ -z "$ONLY_AGENT" || "$ONLY_AGENT" == "my-specialist" ]]; then
+     deploy_agent "my-specialist" "my_specialist" \
+       "my-description" \
+       "my-capability" "specialist"
+   fi
+   ```
+
+3. **Deploy:**
+   ```bash
+   bash scripts/deploy_a2a_agents.sh --only my-specialist
+   ```
+
+4. **Done** — the orchestrator discovers it automatically via `AgentRegistry` labels.
+   No orchestrator redeployment needed.
+
+> [!TIP]
+> Optionally add a `call_my_specialist_agent()` tool to `agents/orchestrator/agent.py`
+> to improve LLM intent classification. Discovery works regardless.
+
+---
+
+## Runtime Request Flow
+
+```
+User sends query
+    │
+    ▼
+Ingress Gateway (Agent Gateway)
+    ├── IAP Extension (fail-closed)
+    │     └── validates caller has roles/iap.egressor
+    └── Model Armor Extension (fail-closed, timeout=3s)
+          └── DLP scan · prompt injection · jailbreak · malicious URL · RAI
+
+    │ authorized
+    ▼
+store_concierge RE (Vertex AI Reasoning Engine)
+    ├── Classifies intent via LLM (gemini-3.5-flash, global endpoint)
+    ├── Routes to specialist tool: call_pizza_agent() etc.
+    └── Specialist RE called via REST (direct PSC, bypasses gateway for cross-agent)
+
+Specialist RE (pizza / burger / sushi)
+    └── LLM call → Egress Gateway
+
+Egress Gateway (Agent Gateway)
+    ├── Model Armor Extension (fail-open, suffix match *.aiplatform.googleapis.com)
+    │     └── response DLP scan · RAI filter
+    ├── SGP Extension (fail-closed)
+    │     └── NLC semantic content check (ALLOW/DENY per agent policy)
+    └── IAP Extension (fail-open, DRY_RUN audit-only)
+
+    │ PSC route (allowlisted hosts only)
+    ▼
+aiplatform.googleapis.com (global endpoint)
+    └── gemini-3.5-flash / gemini-3.1-pro-preview
+
+    │ response
+    ▼
+User
+```
+
+**Observability side-channel:**
+- Cloud Trace ← OTEL token callback in `gateway_agent` (every LLM call)
+- BigQuery `llm_audit_logs` ← `aiplatform` data access + `networksecurity` authz logs
+- Cloud Monitoring ← 6 alert policies (token spike, runaway loop, zero traffic, etc.)
+
+---
+
+## Config Flow
+
+Everything flows from `terraform.tfvars`. Nothing is hardcoded anywhere else.
+
+```
+terraform.tfvars
+  │
+  ├─▶ terraform apply
+  │     Creates: VPC · PSC · Ingress/Egress Gateways · Model Armor · DLP
+  │              IAP extensions · SGP engine + PSC DNS
+  │              Org Policies (3) · GCS staging bucket
+  │              BigQuery audit dataset · Logging sink · Dashboards
+  │
+  ├─▶ scripts/deploy_all.sh  (reads tfvars for project_id, location, prefix)
+  │     Deploys: Reasoning Engines (4 agents)
+  │     Applies: agentGatewayConfig via _gateway_patch.pth
+  │     Grants: IAM roles to WIF principals
+  │     Creates: SGP NLC policies per agent
+  │
+  └─▶ scripts/destroy_all.sh  (reads same tfvars)
+        Deletes: SGP policies → REs → GCS objects → local cache
+```
+
+---
+
+## Repository Structure
+
+```
+Agent-Gateway-Foundation/
+├── terraform.tfvars.example        ← copy this, fill in your values
+├── deploy_all.sh                   ← root convenience wrapper → scripts/deploy_all.sh
+├── destroy_all.sh                  ← full teardown (mirrors deploy_all.sh)
+│
+├── 01_apis.tf                      ← GCP API enablement
+├── 02_network.tf                   ← VPC · subnets · PSC · Agent Gateways · SGP DNS
+├── 03_security_and_gateways.tf     ← Model Armor · DLP · IAP · SGP authz infra
+├── 04_observability.tf             ← Dashboards · log sink · alert policies
+├── 05_org_policies.tf              ← 3 custom org policy constraints
+├── 06_agent_provisioning.tf        ← GCS staging bucket · Vertex AI SA IAM
+├── 07_agent_registry.tf            ← Egress endpoint registration · RE viewer IAM
+│
+├── agents/
+│   ├── orchestrator/               ← store_concierge (A2A orchestrator)
+│   │   ├── agent.py                ← GatewayAgent + routing tools + AgentRegistry
+│   │   └── requirements.txt
+│   ├── pizza-agent/                ← pizza_specialist
+│   ├── burger-agent/               ← burger_specialist
+│   ├── sushi-agent/                ← sushi_specialist
+│   └── chat-agent/                 ← single-agent reference (regional Gemini)
+│
+├── lib/
+│   └── gateway_agent/              ← GatewayAgent SDK
+│       ├── agent.py                ← GatewayAgent class (ADK Agent wrapper)
+│       ├── global_gemini.py        ← PSC-compatible global Gemini 3.x wrapper
+│       └── telemetry.py            ← OTEL token usage callback
+│
+├── scripts/
+│   ├── deploy_all.sh               ← ✅ PRIMARY: full A2A mesh deploy + E2E + SGP
+│   ├── deploy_a2a_agents.sh        ← Deploy individual specialists
+│   ├── deploy_a2a_agent.py         ← Core specialist deploy logic (AgentEngine.create)
+│   ├── redeploy_orchestrator.py    ← Orchestrator deploy logic
+│   ├── patch_a2a_classification.py ← Apply google-adk(a2a) classification PATCHes
+│   ├── create_sgp_policy.sh        ← SGP NLC policy registration
+│   ├── e2e_test.py                 ← 17-query E2E test suite
+│   ├── deploy_chat_agent.sh        ← Single-agent deploy (regional Gemini)
+│   └── deploy_global_agent.sh      ← Single-agent deploy (global Gemini 3.x)
+│
+├── skills/                         ← Antigravity skill library (9 skills)
+├── policies/                       ← SGP NLC policy templates
+├── template/                       ← Starter templates for new agents
+├── docs/                           ← Extended documentation
+├── KNOWN_ISSUES.md                 ← 13 production failure runbooks
+├── CHANGELOG.md
+└── VERSION
+```
+
+---
+
+## Antigravity Skills Setup
+
+The `skills/` directory teaches your AI coding assistant (Antigravity) exactly
+how to set up, maintain, debug, and extend every layer.
+
+**One-time setup:**
+```bash
+mkdir -p ~/.gemini/config/skills
+for d in skills/*/; do
+  ln -sf "$(pwd)/$d" ~/.gemini/config/skills/"$(basename $d)"
+done
+echo "✅ Skills linked"
+```
+
+**Available skills:**
+
+| Skill | When to use |
+|---|---|
+| `a2a-agent-deploy` | Building or debugging A2A multi-agent systems on Vertex AI RE |
+| `a2a-multi-agent-troubleshooting` | 401/403/500 errors, empty responses, cross-agent call failures |
+| `agw-foundation-adoption` | Onboarding a new team to this foundation (Path A/B/C) |
+| `agw-add-sgp-policy` | Adding an SGP NLC policy to a deployed agent |
+| `agw-model-armor-content-authz` | Configuring Model Armor CONTENT_AUTHZ — silent failure prevention |
+| `agw-egress-iap-pitfall` | IAP on egress breaks outbound traffic — root cause + fix |
+| `gateway-agent-sdk` | Adding GatewayAgent SDK, debugging missing telemetry |
+| `sgp-network-authz-pattern` | SGP infra setup — the correct Network Authz path |
+| `sgp-policy-rules` | Writing, testing, and debugging SGP NLC rules |
+| `agent-gateway-deploy-patch` | RE deploy fails with code 13 / org policy error |
+| `vertex-ai-global-endpoint-adk` | Gemini 3.x 404 / model-not-found on regional endpoint |
+
+---
+
+## Troubleshooting
+
+See [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) for full runbooks. Quick reference:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `403 org policy` on first deploy | Missing `roles/orgpolicy.policyAdmin` at org level | Get org admin to grant at org scope |
+| `400 FAILED_PRECONDITION` on RE create | Org policy not propagated (needs 180s) | Wait and re-run |
+| `gRPC code 13 INTERNAL` on RE create | `agentGatewayConfig` missing — `_gateway_patch.pth` not active | Check venv has the `.pth` file |
+| `307 → 404` on stream_query | `A2aAgent` wrapper used instead of `AdkApp` | Use `AdkApp` — see `a2a-agent-deploy` skill |
+| Agent returns empty response | `classMethods` not patched, or `contextSpec` not stripped | Re-run `patch_a2a_classification.py` |
+| SGP `policy created` but no enforcement | Model Armor extension prerequisite missing | See `agw-model-armor-content-authz` skill |
+| Model Armor `500` on global endpoint | Exact host match for `aiplatform.googleapis.com` in egress MA | Use suffix match only — see `vertex-ai-global-endpoint-adk` skill |
+| E2E passes but orchestrator silent | Cross-agent call using wrong user_id or gRPC path | Check `redeploy_orchestrator.py` REST SSE routing |
+| IAP `403` on egress | `egress_iap_policy` set to ENFORCED not DRY_RUN | See `agw-egress-iap-pitfall` skill |
+
+---
+
+## Validated Results
+
+Latest E2E validation: **2026-09-29** · Project: `geap-agw` · Region: `us-east1`
+
+| Test | Agent | Result |
+|------|-------|--------|
+| Pizza order routing | `pizza_specialist` | ✅ PASS |
+| Burger order routing | `burger_specialist` | ✅ PASS |
+| Sushi order routing | `sushi_specialist` | ✅ PASS |
+| Orchestrator direct answer | `store_concierge` | ✅ PASS |
+| Orchestrator → specialist routing | `store_concierge` | ✅ PASS |
+| Model Armor prompt injection block | Ingress gateway | ✅ PASS (HTTP 403) |
+| SGP off-topic block | Egress gateway | ✅ PASS |
+| OTEL token telemetry | Cloud Trace | ✅ PASS |
+
+**SDK stack:** `google-adk==2.5.0` · `google-cloud-aiplatform==1.162.0` · `a2a-sdk==1.1.2` · `gemini-3.5-flash`
+
+---
+
+## Important Notes
+
+- **`agent_name` must be a Python identifier** — underscores only (`my_agent` ✅, `my-agent` ❌)
+- **Never commit `terraform.tfvars`** — it contains your project ID and org ID (gitignored by default)
+- **SDK version pins are mandatory** — do NOT remove pins in `requirements.txt`. See `KNOWN_ISSUES.md` before upgrading
+- **`--region` and `--project` are required** — all scripts fail fast if not supplied; no hidden defaults
+- **`localhost:9999` in agentCard** — intentional A2A protocol sentinel. The real endpoint is in `agentCard.url`. The `supportedInterfaces.url` field is required by the A2A spec but unused at runtime
+- **SGP is non-fatal** — agents work without it. It is the semantic governance layer only
+- **Blue/green orchestrator deploy** — old `store_concierge` REs are deleted after the new one is ACTIVE. There is a brief window where both exist
+
+---
+
+## License
+
+See [LICENSE](LICENSE) file.
