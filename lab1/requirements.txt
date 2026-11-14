@@ -281,7 +281,7 @@ multidict==6.9.1
     #   yarl
 oauthlib==4.0.0
     # via requests-oauthlib
-opentelemetry-api==1.42.1
+opentelemetry-api==1.45.2
     # via
     #   google-adk
     #   google-cloud-bigtable
