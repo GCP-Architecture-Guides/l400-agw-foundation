@@ -35,6 +35,9 @@ agents/chat-agent/gateway_agent/
 *.tfstate
 *.tfstate.backup
 *.tfstate.*.backup
+terraform.tfstate.backup-*
+*.tfplan
+tfplan
 terraform.tfstate.d/
 crash.log
 crash.*.log

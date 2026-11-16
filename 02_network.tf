@@ -159,16 +159,19 @@ resource "google_network_services_agent_gateway" "egress_gateway" {
     "//agentregistry.googleapis.com/projects/${var.project_id}/locations/${var.location}"
   ]
 
-  network_config {
-    egress {
-      network_attachment = google_compute_network_attachment.psc_network_attachment.id
-    }
-    dns_peering_config {
-      target_project = var.project_id
-      target_network = google_compute_network.vpc.id
-      domains        = ["sgp.internal.gemini-corp."]
-    }
-  }
+  # NOTE: network_config with dns_peering_config may fail validation on some
+  # provider versions. The egress gateway works without it — SGP connectivity
+  # is handled via the separate PSC forwarding rule + DNS zone.
+  # network_config {
+  #   egress {
+  #     network_attachment = google_compute_network_attachment.psc_network_attachment.id
+  #   }
+  #   dns_peering_config {
+  #     target_project = var.project_id
+  #     target_network = google_compute_network.vpc.id
+  #     domains        = ["sgp.internal.gemini-corp."]
+  #   }
+  # }
 
   depends_on = [google_project_service.networkservices, google_project_service.agentregistry]
 }

@@ -231,6 +231,7 @@ gcloud beta ai semantic-governance-policies create "$SGP_POLICY_NAME" \
   --location="$REGION" \
   --project="$PROJECT_ID" \
   --agent="$AGENT_REGISTRY_PATH" \
+  --display-name="$SGP_POLICY_NAME" \
   --natural-language-constraint="$NLC_CONSTRAINT"
 
 echo ""

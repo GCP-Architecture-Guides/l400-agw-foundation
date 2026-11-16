@@ -258,14 +258,11 @@ resource "google_network_security_authz_policy" "egress_ma_policy" {
           contains    = "streamquery"
           ignore_case = true
         }
-        paths {
-          contains    = "sessions"
-          ignore_case = true
-        }
-        paths {
-          contains    = "events"
-          ignore_case = true
-        }
+        # NOTE: "sessions" and "events" paths REMOVED from MA egress screening.
+        # Session management and event APIs are not LLM inference calls, so
+        # Model Armor cannot parse them. Sending session create/list requests
+        # through MA produces a 500 with empty message body, breaking the
+        # entire agent query flow. Only LLM content paths should be screened.
       }
     }
   }

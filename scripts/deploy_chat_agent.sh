@@ -9,6 +9,19 @@ SCRIPT_WORKSPACE="$( dirname "$SCRIPT_DIR" )"  # = mod-agw-foundation-pub/
 # All relative paths below are relative to SCRIPT_WORKSPACE (the project root).
 cd "$SCRIPT_WORKSPACE"
 
+# ---------------------------------------------------------------------------
+# Resolve PROJECT_ID from: arg > env > gcloud config
+# ---------------------------------------------------------------------------
+if [ -z "${PROJECT_ID:-}" ]; then
+    PROJECT_ID=$(gcloud config get-value project 2>/dev/null || true)
+fi
+if [ -z "${PROJECT_ID:-}" ]; then
+    echo "❌ PROJECT_ID not set and gcloud project not configured."
+    exit 1
+fi
+export PROJECT_ID
+echo "Using PROJECT_ID=$PROJECT_ID"
+
 echo "Checking if .venv exists..."
 if [[ ! -x ".venv/bin/python" ]]; then
     python3 -m venv .venv
@@ -60,7 +73,7 @@ export AGENT_GATEWAY_EGRESS="projects/${PROJECT_ID}/locations/us-central1/agentG
 # force=true deletes child session resources automatically.
 # ---------------------------------------------------------------------------
 echo "Checking for existing Reasoning Engines named 'trial_matching_supervisor'..."
-.venv/bin/python - <<'PYEOF'
+.venv/bin/python - <<PYEOF
 import sys, time
 import google.auth
 import google.auth.transport.requests
@@ -122,7 +135,7 @@ PYEOF
 # The adk CLI bundles .env files from the agent directory into the deployment.
 # ---------------------------------------------------------------------------
 echo "Writing agents/chat-agent/.env with project env vars..."
-cat > agents/chat-agent/.env << 'ENVEOF'
+cat > agents/chat-agent/.env << ENVEOF
 GCP_PROJECT_ID=${PROJECT_ID}
 GOOGLE_CLOUD_PROJECT=${PROJECT_ID}
 GOOGLE_CLOUD_LOCATION=us-central1
@@ -223,7 +236,7 @@ fi
 echo "Stripping server-injected contextSpec from the new RE..."
 PATCH_TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null)
 
-NEW_RE_ID=$(grep -oP 'reasoningEngines/\K[0-9]+' "$DEPLOY_TMPLOG" | tail -1)
+NEW_RE_ID=$(grep -o 'reasoningEngines/[0-9]*' "$DEPLOY_TMPLOG" | tail -1 | sed 's|reasoningEngines/||')
 rm -f "$DEPLOY_TMPLOG"
 
 if [ -z "$NEW_RE_ID" ]; then
@@ -278,7 +291,7 @@ else
 fi
 
 echo "Verifying — listing deployed Reasoning Engines..."
-.venv/bin/python - <<'PYEOF'
+.venv/bin/python - <<PYEOF
 import google.auth, google.auth.transport.requests, requests as http
 PROJECT  = "${PROJECT_ID}"
 LOCATION = "us-central1"

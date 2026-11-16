@@ -93,10 +93,12 @@ resource "google_project_service" "iam" {
   disable_on_destroy = false
 }
 
-resource "google_project_service" "iamconnectors" {
-  service            = "iamconnectors.googleapis.com"
-  disable_on_destroy = false
-}
+# NOTE: iamconnectors.googleapis.com is not available in all projects.
+# Commented out to prevent deployment failures in restricted environments.
+# resource "google_project_service" "iamconnectors" {
+#   service            = "iamconnectors.googleapis.com"
+#   disable_on_destroy = false
+# }
 
 resource "google_project_service" "logging" {
   service            = "logging.googleapis.com"
