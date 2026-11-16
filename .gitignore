@@ -114,6 +114,12 @@ reference/
 *.internal.md
 
 # -----------------------------------------------------------------------------
+# Assessment / Grading Skill — state and reports (contain credentials, never commit)
+# -----------------------------------------------------------------------------
+.agents/skills/verify-deployment/.assessment_state.json
+assessment_report_*.md
+
+# -----------------------------------------------------------------------------
 # Antigravity / Gemini config (local AI assistant config — never public)
 # -----------------------------------------------------------------------------
 .gemini/
