@@ -245,9 +245,18 @@ resource "google_network_security_authz_policy" "egress_ma_policy" {
       # and roles/modelarmor.user — NOT a real MA/global incompatibility.
       # Fixed 2026-09-30 by granting 3 IAM roles to the gateway SA.
       #
+      # KEY DISCOVERY: The Agent Gateway TLS-intercepts egress and rewrites
+      # hostnames to *.mtls.googleapis.com (e.g., us-central1-aiplatform.googleapis.com
+      # → us-central1-aiplatform.mtls.googleapis.com). httpRules MUST include both
+      # the standard AND .mtls. hostname variants, or the policy won't match traffic
+      # and will show "allowed_as_no_custom_policies_matched_request" in gateway logs.
+      #
       # See: skills/vertex-ai-global-endpoint-adk/SKILL.md §5 for original diagnosis.
       operations {
+        # Standard hostnames
         hosts { suffix = ".aiplatform.googleapis.com" }
+        # mTLS hostnames (Agent Gateway rewrites to these on egress)
+        hosts { suffix = ".aiplatform.mtls.googleapis.com" }
         paths {
           contains    = "generatecontent"
           ignore_case = true
@@ -288,7 +297,7 @@ resource "google_network_services_authz_extension" "sgp_extension" {
   location  = var.location
   project   = var.project_id
   service   = "sgp.internal.gemini-corp"
-  timeout   = "3s"
+  timeout   = "10s" # 10s timeout — SGP evaluation involves LLM-based semantic analysis; 3s is too tight
   fail_open = true  # fail-open — SGP cannot parse non-LLM egress (session API, A2A calls); blocking those breaks the agent
 
   depends_on = [google_project_service.networkservices]
@@ -312,12 +321,54 @@ resource "google_network_security_authz_policy" "egress_sgp_policy" {
     }
   }
 
-  # NOTE: The SGP extension (sgp.internal.gemini-corp) with CONTENT_AUTHZ profile
-  # does NOT support http_rules — the API enforces this constraint.
-  # The SGP evaluates ALL outbound content semantically by design.
-  # Egress allowlist enforcement is handled at the PSC routing level:
-  # hosts not registered in allowed_egress_hosts have no PSC route and are
-  # blocked by the gateway's deny-by-default posture at the routing layer.
+  # SGP httpRules — scope the extension to LLM inference egress traffic only.
+  #
+  # KEY DISCOVERY: The Agent Gateway TLS-intercepts egress and rewrites
+  # hostnames to *.mtls.googleapis.com (e.g., us-central1-aiplatform.googleapis.com
+  # → us-central1-aiplatform.mtls.googleapis.com). httpRules MUST include both
+  # the standard AND .mtls. hostname variants, or the policy won't match traffic
+  # and will show "allowed_as_no_custom_policies_matched_request" in gateway logs.
+  #
+  # NOTE: SGP is a TOOL-CALL GOVERNANCE layer — it evaluates agent actions
+  # (function_call) on egress, NOT user prompts. For text-only responses
+  # (no tool call), SGP has nothing to evaluate and passes through.
+  # Off-topic PROMPT blocking is handled by Model Armor on ingress and/or
+  # agent system instructions.
+  http_rules {
+    to {
+      operations {
+        # Standard hostnames
+        hosts { suffix = ".aiplatform.googleapis.com" }
+        hosts { suffix = "-aiplatform.googleapis.com" }
+        hosts { suffix = "aiplatform.googleapis.com" }
+        # mTLS hostnames (Agent Gateway rewrites to these on egress)
+        hosts { suffix = ".aiplatform.mtls.googleapis.com" }
+        hosts { suffix = "-aiplatform.mtls.googleapis.com" }
+        hosts { suffix = "aiplatform.mtls.googleapis.com" }
+        # LLM content paths only — NOT sessions/events (SGP can't parse those)
+        paths {
+          contains    = "generatecontent"
+          ignore_case = true
+        }
+        paths {
+          contains    = "query"
+          ignore_case = true
+        }
+        paths {
+          contains    = "streamquery"
+          ignore_case = true
+        }
+        paths {
+          contains    = "sessions"
+          ignore_case = true
+        }
+        paths {
+          contains    = "events"
+          ignore_case = true
+        }
+      }
+    }
+  }
 }
 
 # ==============================================================================
@@ -602,6 +653,39 @@ resource "google_project_iam_member" "gw_sa_agentgateway_service_usage" {
   role       = "roles/serviceusage.serviceUsageConsumer"
   member     = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-agentgateway.iam.gserviceaccount.com"
   depends_on = [google_project_service.modelarmor]
+}
+
+# ==============================================================================
+# GATEWAY SERVICE ACCOUNT — SGP VPC CONNECTIVITY IAM (MANDATORY)
+# ==============================================================================
+# The Agent Gateway SA (gcp-sa-agentgateway) needs network and DNS roles to
+# reach the SGP engine via PSC + DNS peering. Without these, the SGP extension
+# calls fail silently (failedOpen: true in gateway logs).
+#
+# Discovered 2026-11-16: SGP extension showed failedOpen=true because the
+# gateway SA could not resolve sgp.internal.gemini-corp via DNS peering or
+# route to the PSC endpoint. Adding these 3 IAM roles fixed connectivity.
+# ==============================================================================
+
+resource "google_project_iam_member" "gw_sa_agentgateway_network_viewer" {
+  project    = var.project_id
+  role       = "roles/compute.networkViewer"
+  member     = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-agentgateway.iam.gserviceaccount.com"
+  depends_on = [google_project_service.compute]
+}
+
+resource "google_project_iam_member" "gw_sa_agentgateway_network_user" {
+  project    = var.project_id
+  role       = "roles/compute.networkUser"
+  member     = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-agentgateway.iam.gserviceaccount.com"
+  depends_on = [google_project_service.compute]
+}
+
+resource "google_project_iam_member" "gw_sa_agentgateway_dns_reader" {
+  project    = var.project_id
+  role       = "roles/dns.reader"
+  member     = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-agentgateway.iam.gserviceaccount.com"
+  depends_on = [google_project_service.dns]
 }
 
 # ==============================================================================

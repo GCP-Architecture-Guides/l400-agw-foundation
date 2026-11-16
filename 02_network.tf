@@ -159,19 +159,29 @@ resource "google_network_services_agent_gateway" "egress_gateway" {
     "//agentregistry.googleapis.com/projects/${var.project_id}/locations/${var.location}"
   ]
 
-  # NOTE: network_config with dns_peering_config may fail validation on some
-  # provider versions. The egress gateway works without it — SGP connectivity
-  # is handled via the separate PSC forwarding rule + DNS zone.
-  # network_config {
-  #   egress {
-  #     network_attachment = google_compute_network_attachment.psc_network_attachment.id
-  #   }
-  #   dns_peering_config {
-  #     target_project = var.project_id
-  #     target_network = google_compute_network.vpc.id
-  #     domains        = ["sgp.internal.gemini-corp."]
-  #   }
-  # }
+  # network_config — enables DNS peering so the egress gateway can resolve
+  # sgp.internal.gemini-corp → PSC endpoint IP via the project's private DNS zone.
+  #
+  # PREREQUISITE: The gateway SA (gcp-sa-agentgateway) must have:
+  #   - roles/compute.networkViewer
+  #   - roles/compute.networkUser
+  #   - roles/dns.reader
+  # These are granted in 03_security_and_gateways.tf. Without them, the API
+  # may reject network_config validation or the gateway can't resolve DNS.
+  #
+  # NOTE: If Terraform validation fails on your provider version, comment this
+  # block out and apply the network_config manually via REST API:
+  #   gcloud alpha network-services gateways update aegis-egress-gateway ...
+  network_config {
+    egress {
+      network_attachment = google_compute_network_attachment.psc_network_attachment.id
+    }
+    dns_peering_config {
+      target_project = var.project_id
+      target_network = google_compute_network.vpc.id
+      domains        = ["sgp.internal.gemini-corp."]
+    }
+  }
 
   depends_on = [google_project_service.networkservices, google_project_service.agentregistry]
 }
