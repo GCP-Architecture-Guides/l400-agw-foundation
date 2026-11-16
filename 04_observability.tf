@@ -114,7 +114,7 @@ resource "google_bigquery_dataset" "llm_audit_logs" {
   location                   = "US" # existing dataset created with US (multi-region); do not change
   delete_contents_on_destroy = false
 
-  depends_on = [google_project_service.storage]
+  depends_on = [google_project_service.bigquery]
 }
 
 resource "google_logging_project_sink" "llm_invocation_sink" {

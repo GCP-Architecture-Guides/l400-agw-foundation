@@ -31,10 +31,11 @@
 #                        the need to hardcode endpoint URLs in agent code.
 #
 # NOTE: google_agent_registry_service Terraform resource requires google-beta
-# provider >= 7.42.0. This deployment runs 7.38.0, so we use null_resource +
-# gcloud alpha agent-registry services create (confirmed-working pattern, same
-# as the SGP engine lookup in 02_network.tf). When the provider is upgraded to
-# >= 7.42.0, replace null_resource blocks with google_agent_registry_service.
+# provider >= 7.42.0. This deployment runs 8.5.0, so native TF resources SHOULD
+# work — however, null_resource + gcloud alpha is used for reliability because
+# the google_agent_registry_service resource type is not yet stable in all
+# provider builds. When the resource is GA, replace null_resource blocks with
+# google_agent_registry_service.
 # ==============================================================================
 
 # ------------------------------------------------------------------------------

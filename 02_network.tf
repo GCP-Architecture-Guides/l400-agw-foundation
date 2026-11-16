@@ -183,7 +183,13 @@ resource "google_network_services_agent_gateway" "egress_gateway" {
     }
   }
 
-  depends_on = [google_project_service.networkservices, google_project_service.agentregistry]
+  depends_on = [
+    google_project_service.networkservices,
+    google_project_service.agentregistry,
+    google_project_iam_member.gw_sa_agentgateway_network_viewer,
+    google_project_iam_member.gw_sa_agentgateway_network_user,
+    google_project_iam_member.gw_sa_agentgateway_dns_reader,
+  ]
 }
 
 # =========================================================================
@@ -195,7 +201,12 @@ resource "google_compute_network_attachment" "sgp_network_attachment" {
   region                = var.location
   description           = "Network attachment for SGP engine PSC connectivity"
   connection_preference = "ACCEPT_AUTOMATIC"
-  subnetworks           = [google_compute_subnetwork.intf_subnet.id]
+  # IMPORTANT: Use sgp_subnet (10.10.10.0/24), NOT intf_subnet (192.168.10.0/28).
+  # The intf_subnet is shared with the egress gateway PSC attachment.
+  # The SGP PSC endpoint (forwarding rule + static IP) lives on sgp_subnet,
+  # so the network attachment must also use sgp_subnet for the PSC plumbing
+  # to route correctly to the SGP engine service attachment.
+  subnetworks           = [google_compute_subnetwork.sgp_subnet.id]
 
   depends_on = [google_project_service.compute]
 }

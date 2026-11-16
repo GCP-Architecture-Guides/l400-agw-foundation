@@ -256,7 +256,8 @@ fi
 echo "Stripping server-injected contextSpec from the new RE..."
 PATCH_TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null)
 
-NEW_RE_ID=$(grep -oP 'reasoningEngines/\K[0-9]+' "$DEPLOY_TMPLOG" | tail -1)
+# macOS-compatible: grep -oP is GNU-only; use sed instead
+NEW_RE_ID=$(sed -n 's|.*reasoningEngines/\([0-9][0-9]*\).*|\1|p' "$DEPLOY_TMPLOG" | tail -1)
 rm -f "$DEPLOY_TMPLOG"
 
 if [ -z "$NEW_RE_ID" ]; then

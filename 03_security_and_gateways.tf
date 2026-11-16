@@ -345,7 +345,8 @@ resource "google_network_security_authz_policy" "egress_sgp_policy" {
         hosts { suffix = ".aiplatform.mtls.googleapis.com" }
         hosts { suffix = "-aiplatform.mtls.googleapis.com" }
         hosts { suffix = "aiplatform.mtls.googleapis.com" }
-        # LLM content paths only — NOT sessions/events (SGP can't parse those)
+        # LLM content paths only — NOT sessions/events (SGP can't parse those).
+        # Matches the MA egress httpRules pattern — only LLM inference paths.
         paths {
           contains    = "generatecontent"
           ignore_case = true
@@ -356,14 +357,6 @@ resource "google_network_security_authz_policy" "egress_sgp_policy" {
         }
         paths {
           contains    = "streamquery"
-          ignore_case = true
-        }
-        paths {
-          contains    = "sessions"
-          ignore_case = true
-        }
-        paths {
-          contains    = "events"
           ignore_case = true
         }
       }

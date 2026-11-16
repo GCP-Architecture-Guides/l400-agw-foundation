@@ -99,6 +99,10 @@ Lab 1 must be completed **before** starting Lab 2. You need:
   - 4 Cloud Run services (genomic-biomarker, pharmacovigilance, clinical-cohort, trial-synthesizer)
 - `gcloud` CLI authenticated with project access
 - Terraform installed (v1.5+)
+- `gcloud` alpha and beta components installed:
+  ```bash
+  gcloud components install alpha beta
+  ```
 
 ### Source Repository
 
@@ -129,6 +133,7 @@ l400-agw-foundation/                ← repo root (you are here after git clone 
 ├── terraform.tfvars.example         ← ⬅️ COPY TO terraform.tfvars AND CONFIGURE (Task 1)
 ├── scripts/
 │   ├── create_sgp_policy.sh         ← SGP registration (Task 5)
+│   ├── provision_sgp_engine.sh      ← Auto-provisions SGP engine (called by Terraform)
 │   ├── red_team_gauntlet.sh         ← Security gauntlet (Task 6)
 │   └── discover_lab1_resources.sh   ← Lab 1 resource discovery
 ├── lab1/                            ← Lab 1 code (reference only)
@@ -146,7 +151,7 @@ cp terraform.tfvars.example terraform.tfvars
 Then run the discovery script to verify all Lab 1 resources exist:
 
 ```bash
-bash scripts/discover_lab1_resources.sh --project YOUR_PROJECT_ID --region us-central1
+bash scripts/discover_lab1_resources.sh --project [YOUR_PROJECT_ID] --region us-central1
 ```
 
 **Expected output:** ✅ for Reasoning Engine, 4 Cloud Run services, and service accounts.
@@ -401,9 +406,9 @@ Terraform reads `terraform.tfvars` and creates approximately **99 GCP resources*
 
 | File | What It Creates | Resources |
 |---|---|---|
-| `01_apis.tf` | Enables GCP APIs | `compute`, `modelarmor`, `agentregistry`, `dlp`, `iap`, etc. |
-| `02_network.tf` | VPC + networking | Dedicated VPC, PSC subnets, firewalls, **ingress & egress Agent Gateways** |
-| `03_security_and_gateways.tf` | Security extensions | **Model Armor template** (BLOCK mode), DLP templates, IAP/SGP extensions, egress MA policy |
+| `01_apis.tf` | Enables GCP APIs | `compute`, `modelarmor`, `agentregistry`, `dlp`, `iap`, `bigquery`, `run`, etc. |
+| `02_network.tf` | VPC + networking | Dedicated VPC, PSC subnets, firewalls, **ingress & egress Agent Gateways**, SGP PSC connectivity (network attachment, PSC endpoint, DNS zone, forwarding rule) |
+| `03_security_and_gateways.tf` | Security extensions | **Model Armor template** (BLOCK mode), DLP templates, IAP/SGP extensions, egress MA policy, 9 gateway SA IAM grants (MA + SGP connectivity) |
 | `04_observability.tf` | Monitoring & audit | 3 Cloud Monitoring dashboards, BigQuery `llm_audit_logs` dataset |
 | `05_org_policies.tf` | Org policies (**SKIPPED**) | `enable_org_policies = false` prevents these from being created |
 | `06_agent_provisioning.tf` | RE staging | GCS staging bucket |
@@ -414,7 +419,7 @@ Terraform reads `terraform.tfvars` and creates approximately **99 GCP resources*
 >
 > 1. **`iamconnectors.googleapis.com` — Permission Denied.** This API is not available in all projects. The resource is already commented out in `01_apis.tf` (lines 96-99). If you hit this, verify it's commented out.
 >
-> 2. **Egress Gateway `network_config` validation failure.** The `dns_peering_config` block may fail validation on some Terraform provider versions. If validation fails, comment out the `network_config` block in `02_network.tf` (lines 162-184) and apply network_config manually via the REST API after `terraform apply` succeeds. The egress gateway and SGP still work — just apply the network config as a post-deploy step.
+> 2. **Egress Gateway `network_config` validation failure.** The `dns_peering_config` block is active in `02_network.tf` (lines 175-184) and is required for SGP to work. If validation fails on your Terraform provider version, temporarily comment out the `network_config` block, run `terraform apply`, then apply the `network_config` manually via the REST API as a post-deploy step. See Code Changes §9.
 >
 > 3. **Org policy resources — `PERMISSION_DENIED`.** Expected when `enable_org_policies = false`. These resources are skipped entirely. If you see errors, double-check that `enable_org_policies = false` in `terraform.tfvars`.
 >
@@ -498,6 +503,9 @@ graph LR
 ### Prerequisites
 
 Before patching, verify your Lab 1 RE has `identityType=AGENT_IDENTITY`:
+
+> [!NOTE]
+> If `gcloud ai reasoning-engines` returns "Invalid choice: 'reasoning-engines'", use `gcloud beta ai reasoning-engines` instead. The `reasoning-engines` resource may require `beta` or `alpha` depending on your gcloud SDK version.
 
 ```bash
 # Get your Lab 1 RE ID
@@ -898,7 +906,7 @@ Paste the same 5 prompts from Step 0's "Before Lab 2: Security Baseline Test" se
 | 1 | Raw PII Screening | ⚠️ Processed — PII intact | 🔒 PII de-identified by DLP | **Compliance gap closed** |
 | 2 | Embedded Injection | ⚠️ Silently ignored (no alert) | 🛡️ HTTP 403 (Model Armor) | **Invisible attack now caught** |
 | 3 | Obvious Injection | ✅ Text refusal (system prompt) | 🛡️ HTTP 403 (Model Armor) | Soft defense → Hard defense |
-| 4 | Protocol Deviation | ⚠️ INELIGIBLE but wrong reason | 📋 SGP blocks deviation | **Domain rules enforced** |
+| 4 | Protocol Deviation | ⚠️ INELIGIBLE but wrong reason | 📋 Agent instructions + defense-in-depth | **Domain rules enforced** |
 | 5 | Legitimate Query | ✅ Works | ✅ Works | No impact to core function |
 
 > **The key takeaway:** Before Lab 2, your agent's security depended on the LLM "choosing" to be good — some attacks were caught (Prompt 3), some were invisible (Prompt 2), and raw PII flowed freely (Prompt 1). After Lab 2, security is enforced at the **infrastructure level** — same agent code, but now with a deterministic, auditable security envelope that isn't bypassable by prompt engineering.
@@ -1087,7 +1095,7 @@ meets the eligibility criteria for trial NCT-AEGIS-001.
 | **SGP "Agent not configured with valid RuntimeIdentity"** | RE deployed without `identityType=AGENT_IDENTITY` | Redeploy RE in Lab 1 with `identityType=AGENT_IDENTITY` set at creation time. |
 | **Agent Registry name mismatch** | SGP script reads `agent_name` from tfvars — must match RE displayName | Ensure Lab 1 RE `displayName` matches `agent_name` in `terraform.tfvars` (both should be `trial_matching_supervisor`). |
 | **`iamconnectors.googleapis.com` Permission Denied** | API not available in all projects | Already commented out in `01_apis.tf` (lines 96-99). |
-| **Egress Gateway `network_config` validation failure** | `dns_peering_config` block fails API validation | Already commented out in `02_network.tf` (lines 162-175). |
+| **Egress Gateway `network_config` validation failure** | `dns_peering_config` block fails API validation | Active in `02_network.tf` (lines 175-184) — required for SGP DNS resolution. If validation fails on your provider version, temporarily comment out, apply, then restore and re-apply. See Code Changes §9. |
 | **Terraform `terraform init` fails with stale state** | Module paths changed after restructuring | Run `terraform init -reconfigure`. |
 | **SGP egress blocks ALL outbound traffic** | SGP extension `fail_open=false` (default) blocks session API, A2A calls, and other non-LLM requests that SGP can't parse semantically | Set SGP extension `fail_open = true` in `03_security_and_gateways.tf`. SGP httpRules scope evaluation to LLM content paths only; non-matching traffic bypasses SGP. |
 | **SGP policy shows "no custom policies matched"** | SGP `httpRules` missing `.mtls.` hostname variants | Agent Gateway TLS-intercepts egress and rewrites hostnames to `*.mtls.googleapis.com`. Add both `.aiplatform.googleapis.com` AND `.aiplatform.mtls.googleapis.com` suffix variants to SGP/MA egress httpRules. |
@@ -1110,11 +1118,12 @@ These changes have already been applied to the repo. If you're starting fresh fr
 #   service            = "iamconnectors.googleapis.com"
 ```
 
-### 2. `02_network.tf` — `network_config` commented out (lines 162-175)
+### 2. `02_network.tf` — SGP network attachment uses dedicated `sgp_subnet`
 ```hcl
-  # NOTE: network_config with dns_peering_config may fail validation on some
-  # projects. Commented out — egress gateway works without it.
-  # network_config {
+  # IMPORTANT: Use sgp_subnet (10.10.10.0/24), NOT intf_subnet (192.168.10.0/28).
+  # The SGP PSC endpoint lives on sgp_subnet, so the network attachment must also
+  # use sgp_subnet for PSC routing to work correctly.
+  subnetworks = [google_compute_subnetwork.sgp_subnet.id]
 ```
 
 ### 3. `03_security_and_gateways.tf` — Sessions/events removed from MA egress (line ~261)
@@ -1155,7 +1164,7 @@ resource "google_network_security_authz_policy" "egress_sgp_policy" {
       operations {
         hosts { suffix = ".aiplatform.googleapis.com" }
         hosts { suffix = ".aiplatform.mtls.googleapis.com" }  # ← REQUIRED for matching
-        # ... paths: generatecontent, query, streamquery, sessions, events
+        # ... paths: generatecontent, query, streamquery
       }
     }
   }
