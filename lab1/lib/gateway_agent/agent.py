@@ -65,7 +65,9 @@ from .telemetry import emit_llm_usage_from_response
 try:
     from google.cloud.aiplatform.utils import resource_manager_utils
 
-    def _patched_get_project_id(project_number: str) -> str:
+    def _patched_get_project_id(project_number=None, project=None, **kwargs) -> str:
+        # Accept any combination of kwargs the SDK may pass (project_number=,
+        # project=, credentials=) without crashing.
         return (
             os.environ.get("GCP_PROJECT_ID")
             or os.environ.get("GOOGLE_CLOUD_PROJECT")

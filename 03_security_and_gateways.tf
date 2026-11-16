@@ -44,6 +44,7 @@ resource "google_data_loss_prevention_inspect_template" "identification_template
     include_quote  = true
 
     info_types { name = "US_SOCIAL_SECURITY_NUMBER" }
+    info_types { name = "PHONE_NUMBER" }
     info_types { name = "EMAIL_ADDRESS" }
     info_types { name = "GCP_API_KEY" }
     info_types { name = "GCP_CREDENTIALS" }
@@ -68,6 +69,7 @@ resource "google_data_loss_prevention_deidentify_template" "deidentify_template"
     info_type_transformations {
       transformations {
         info_types { name = "US_SOCIAL_SECURITY_NUMBER" }
+        info_types { name = "PHONE_NUMBER" }
         info_types { name = "EMAIL_ADDRESS" }
         info_types { name = "GCP_API_KEY" }
         info_types { name = "GCP_CREDENTIALS" }
@@ -287,7 +289,7 @@ resource "google_network_services_authz_extension" "sgp_extension" {
   project   = var.project_id
   service   = "sgp.internal.gemini-corp"
   timeout   = "3s"
-  fail_open = false # explicit fail-closed per official docs — deny if SGP unreachable
+  fail_open = true  # fail-open — SGP cannot parse non-LLM egress (session API, A2A calls); blocking those breaks the agent
 
   depends_on = [google_project_service.networkservices]
 }

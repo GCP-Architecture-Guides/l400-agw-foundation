@@ -52,11 +52,11 @@ TOKEN=$(gcloud auth print-access-token 2>/dev/null)
 # ── Find RE ID ──────────────────────────────────────────────────────────────
 if [[ -z "${RE_ID:-}" ]]; then
   RE_ID=$(curl -s -H "Authorization: Bearer $TOKEN" \
-    "https://${REGION}-aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${REGION}/reasoningEngines" \
+    "https://${REGION}-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/${REGION}/reasoningEngines" \
     | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
-for target in ['${AGENT_NAME}', 'chat-agent']:
+for target in ['${AGENT_NAME}', 'trial_matching_supervisor']:
     for re in data.get('reasoningEngines', []):
         if re.get('displayName', '') == target:
             print(re['name'].split('/')[-1])
@@ -72,7 +72,7 @@ if [[ -z "$RE_ID" ]]; then
   exit 1
 fi
 
-RE_URL="https://${REGION}-aiplatform.googleapis.com/v1beta1/projects/${PROJECT_ID}/locations/${REGION}/reasoningEngines/${RE_ID}:streamQuery"
+RE_URL="https://${REGION}-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/${REGION}/reasoningEngines/${RE_ID}:streamQuery"
 
 echo "  Project : $PROJECT_ID"
 echo "  Region  : $REGION"
