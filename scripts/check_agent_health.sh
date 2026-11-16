@@ -33,9 +33,9 @@ warn()  { echo "  $WARN $*"; }
 
 # ── Config from terraform.tfvars ─────────────────────────────────────────────
 TFVARS="$WORKSPACE/terraform.tfvars"
-PROJECT=$(grep -oP '^project_id\s*=\s*"\K[^"]+' "$TFVARS")
-REGION=$(grep -oP '^location\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null || grep -oP '^region\s*=\s*"\K[^"]+' "$TFVARS")
-AGENT_NAME=$(grep -oP '^agent_name\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null || echo "")
+PROJECT=$(sed -n 's/^project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS")
+REGION=$(sed -n 's/^location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null || sed -n 's/^region[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS")
+AGENT_NAME=$(sed -n 's/^agent_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null || echo "")
 RE_API="https://${REGION}-aiplatform.googleapis.com/v1beta1/projects/${PROJECT}/locations/${REGION}/reasoningEngines"
 TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null | tail -1)
 

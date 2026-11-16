@@ -88,12 +88,12 @@ if [[ ! -f "$TFVARS" ]]; then
   echo "❌ terraform.tfvars not found at $TFVARS — cannot deploy."
   exit 1
 fi
-PROJECT_ID=$(grep -oP '^project_id\s*=\s*"\K[^"]+' "$TFVARS")
-REGION=$(grep -oP '^location\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null \
-  || grep -oP '^region\s*=\s*"\K[^"]+' "$TFVARS")
-PREFIX=$(grep -oP '^prefix\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null || echo "")
-AGENT_NAME=$(grep -oP '^agent_name\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null || echo "global_agent")
-AGENT_DESC=$(grep -oP '^agent_description\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null \
+PROJECT_ID=$(sed -n 's/^project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS")
+REGION=$(sed -n 's/^location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null \
+  || sed -n 's/^region[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS")
+PREFIX=$(sed -n 's/^prefix[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null || echo "")
+AGENT_NAME=$(sed -n 's/^agent_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null || echo "global_agent")
+AGENT_DESC=$(sed -n 's/^agent_description[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null \
   || echo "A foundational agent demonstrating the Vertex AI global endpoint with Gemini 3.5 Flash behind Agent Gateway.")
 AGENT_MODEL="gemini-3.5-flash"
 
@@ -392,7 +392,7 @@ source "$(dirname "$0")/grant_agent_iam_roles.sh"
 echo "Stripping server-injected contextSpec from the new RE..."
 PATCH_TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null)
 
-NEW_RE_ID=$(grep -oP 'reasoningEngines/\K[0-9]+' "$DEPLOY_TMPLOG" | tail -1)
+NEW_RE_ID=$(sed -n 's|.*reasoningEngines/\([0-9][0-9]*\).*|\1|p' "$DEPLOY_TMPLOG" | tail -1)
 rm -f "$DEPLOY_TMPLOG"
 
 if [ -z "$NEW_RE_ID" ]; then

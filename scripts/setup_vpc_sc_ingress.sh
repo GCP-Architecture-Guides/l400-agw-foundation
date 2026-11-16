@@ -97,7 +97,7 @@ if [[ -z "$POLICY_ID" || -z "$PERIMETER_NAME" ]]; then
   echo ""
   echo "   Find your Access Context Manager policy ID:"
   echo "   gcloud access-context-manager policies list \\"
-  echo "     --organization=\$(grep -oP 'organization_id.*\"\\K[^\"]+' terraform.tfvars)"
+  echo "     --organization=\$(sed -n 's/^organization_id[[:space:]]*=[[:space:]]*\"\([^\"]*\)\".*/\1/p' terraform.tfvars)"
   echo ""
   echo "   Usage: bash scripts/setup_vpc_sc_ingress.sh --policy-id ID --perimeter NAME"
   exit 1
@@ -111,8 +111,8 @@ fi
 # =============================================================================
 # Read values from terraform.tfvars
 # =============================================================================
-PROJECT_ID=$(grep -oP '^project_id\s*=\s*"\K[^"]+' terraform.tfvars)
-ORG_ID=$(grep -oP '^organization_id\s*=\s*"\K[^"]+' terraform.tfvars)
+PROJECT_ID=$(sed -n 's/^project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars)
+ORG_ID=$(sed -n 's/^organization_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars)
 
 if [[ -z "$PROJECT_ID" || -z "$ORG_ID" ]]; then
   echo "❌ Could not read project_id or organization_id from terraform.tfvars."

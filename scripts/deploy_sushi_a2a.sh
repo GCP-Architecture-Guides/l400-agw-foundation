@@ -27,10 +27,10 @@ cd "$ROOT"
 # ---------------------------------------------------------------------------
 # Config — reads from terraform.tfvars
 # ---------------------------------------------------------------------------
-PROJECT=$(grep -oP '^project_id\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "geap-agw")
-REGION=$(grep -oP '^location\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null \
-  || grep -oP '^region\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "us-east1")
-PREFIX=$(grep -oP '^prefix\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "geap")
+PROJECT=$(sed -n 's/^project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "geap-agw")
+REGION=$(sed -n 's/^location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null \
+  || sed -n 's/^region[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "us-east1")
+PREFIX=$(sed -n 's/^prefix[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "geap")
 
 AGENT="sushi-agent-a2a"
 DISPLAY_NAME="sushi_specialist_a2a"

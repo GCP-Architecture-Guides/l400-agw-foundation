@@ -42,11 +42,11 @@ if [[ ! -f "$TFVARS" ]]; then
   exit 1
 fi
 
-PROJECT_ID=$(grep -oP '^project_id\s*=\s*"\K[^"]+' "$TFVARS")
-REGION=$(grep -oP '^location\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null \
-         || grep -oP '^region\s*=\s*"\K[^"]+' "$TFVARS")
-PREFIX=$(grep -oP '^prefix\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null || echo "agw")
-BUCKET=$(grep -oP '^staging_bucket\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null \
+PROJECT_ID=$(sed -n 's/^project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS")
+REGION=$(sed -n 's/^location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null \
+         || sed -n 's/^region[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS")
+PREFIX=$(sed -n 's/^prefix[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null || echo "agw")
+BUCKET=$(sed -n 's/^staging_bucket[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null \
          || echo "gs://${PROJECT_ID}-staging")
 
 INGRESS_GW="projects/${PROJECT_ID}/locations/${REGION}/agentGateways/${PREFIX}-ingress-gateway"

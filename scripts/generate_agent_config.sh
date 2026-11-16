@@ -66,7 +66,7 @@ print(val if val is not None else '')
 # Fall through to terraform.tfvars grep, then gcloud config.
 PROJECT_ID=$(extract project_id)
 if [[ -z "$PROJECT_ID" ]]; then
-  PROJECT_ID=$(grep -oP '^project_id\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || true)
+  PROJECT_ID=$(sed -n 's/^project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || true)
 fi
 if [[ -z "$PROJECT_ID" ]]; then
   PROJECT_ID=$(gcloud config get-value project 2>/dev/null || true)
@@ -76,9 +76,9 @@ if [[ -z "$PROJECT_ID" ]]; then
   exit 1
 fi
 
-REGION=$(grep -oP '^region\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "us-east1")
-LOCATION=$(grep -oP '^location\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "$REGION")
-PREFIX=$(grep -oP '^prefix\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "")
+REGION=$(sed -n 's/^region[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "us-east1")
+LOCATION=$(sed -n 's/^location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "$REGION")
+PREFIX=$(sed -n 's/^prefix[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "")
 
 INGRESS_GATEWAY=$(extract ingress_gateway_name)
 EGRESS_GATEWAY=$(extract egress_gateway_name)

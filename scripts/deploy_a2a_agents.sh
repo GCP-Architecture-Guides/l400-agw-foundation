@@ -60,10 +60,10 @@ fi
 TFVARS="$WORKSPACE/terraform.tfvars"
 [[ -f "$TFVARS" ]] || { echo "❌ terraform.tfvars not found"; exit 1; }
 
-PROJECT_ID=$(grep -oP '^project_id\s*=\s*"\K[^"]+' "$TFVARS")
-REGION=$(grep -oP '^location\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null \
-         || grep -oP '^region\s*=\s*"\K[^"]+' "$TFVARS")
-PREFIX=$(grep -oP '^prefix\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null || echo "geap")
+PROJECT_ID=$(sed -n 's/^project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS")
+REGION=$(sed -n 's/^location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null \
+         || sed -n 's/^region[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS")
+PREFIX=$(sed -n 's/^prefix[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null || echo "geap")
 
 INGRESS_GW="projects/${PROJECT_ID}/locations/${REGION}/agentGateways/${PREFIX}-ingress-gateway"
 EGRESS_GW="projects/${PROJECT_ID}/locations/${REGION}/agentGateways/${PREFIX}-egress-gateway"
