@@ -1,4 +1,4 @@
-# **Architecting Clinical Trial Governance, Genomic Privacy (GINA), and Evals**
+# **Architecting Governance in Multi-Agent Platforms Lab**
 
 **Schedule:** 2 hours
 
@@ -90,6 +90,10 @@ The Institutional Review Board (IRB) and Clinical Trial Security Office (CTSO) h
 
 <a id="step-0"></a>
 ## **Step 0. Lab Environment Setup**
+
+> **Domain Context — Architecting Clinical Trial Governance, Genomic Privacy (GINA), and Evals**
+>
+> This lab applies Agent Gateway Foundation security and governance patterns to a real-world oncology clinical trial matching mesh built in Lab 5. The domain requires strict compliance with **HIPAA** (patient health data) and the **Genetic Information Nondiscrimination Act (GINA)** (genomic biomarker data), making it an ideal testbed for multi-layer content inspection, semantic governance, and audit controls.
 
 ### Prerequisites
 
