@@ -1,8 +1,8 @@
 #!/bin/bash
 # ============================================================================
-# Lab 2 Pre-Flight Check
+# Lab 6 Pre-Flight Check
 # ============================================================================
-# Verifies whether Lab 1 setup is complete before starting Lab 2.
+# Verifies whether Lab 5 setup is complete before starting Lab 6.
 # If all checks pass, skip Task 0 and proceed directly to Task 1.
 #
 # Usage:
@@ -34,7 +34,7 @@ check() {
 
 echo ""
 echo "========================================"
-echo "  Lab 2 Pre-Flight Check"
+echo "  Lab 6 Pre-Flight Check"
 echo "  Project: ${PROJECT_ID:-<not set>}"
 echo "========================================"
 echo ""
@@ -76,9 +76,9 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# Layer 4: Agent Code (Lab 1 Completion Check)
+# Layer 4: Agent Code (Lab 5 Completion Check)
 # ---------------------------------------------------------------------------
-echo "🤖 Layer 4: Agent Code (Lab 1 completion)"
+echo "🤖 Layer 4: Agent Code (Lab 5 completion)"
 
 # Check if agents are implemented (not None stubs from challenge template)
 if [ -f agents/trial_matching_supervisor/agent.py ]; then
@@ -167,7 +167,7 @@ else
   echo "   1. Clone repo:  git clone https://github.com/GCP-Architecture-Guides/l400-agw-foundation.git"
   echo "   2. Install deps: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
   echo "   3. Configure:   cp .env.example .env && edit .env with your project ID"
-  echo "   4. Complete Lab 1 agent challenges first"
+  echo "   4. Complete Lab 5 agent challenges first"
   echo "   5. Enable APIs:  see Task 1 in the lab guide"
   echo ""
   exit 1

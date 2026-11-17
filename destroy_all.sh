@@ -85,9 +85,9 @@ if [[ ! -f "terraform.tfvars" ]]; then
 fi
 
 # Read the same values that deploy_all.sh reads
-PROJECT_ID=$(grep -oP '^project_id\s*=\s*"\K[^"]+' terraform.tfvars)
-REGION=$(grep -oP '^location\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null \
-  || grep -oP '^region\s*=\s*"\K[^"]+' terraform.tfvars)
+PROJECT_ID=$(sed -n 's/^project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars)
+REGION=$(sed -n 's/^location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null \
+  || sed -n 's/^region[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars)
 
 if [[ -z "$PROJECT_ID" || -z "$REGION" ]]; then
     echo "❌ Could not read project_id or location/region from terraform.tfvars."
@@ -95,9 +95,9 @@ if [[ -z "$PROJECT_ID" || -z "$REGION" ]]; then
 fi
 
 # Use the same A2A-capable venv that deploy_all.sh uses
-# Priority: fiveg-ran-agent venv → workspace venv → system python3
-FIVEG_VENV="$HOME/Desktop/Workspace/fiveg-ran-agent/foundation/.venv"
-WORKSPACE_VENV="$HOME/Desktop/Workspace/.venv"
+# Priority: project .venv → workspace venv → system python3
+FIVEG_VENV="${PROJECT_ROOT:-.}/.venv"
+WORKSPACE_VENV="${PROJECT_ROOT:-.}/lab1/.venv"
 
 if [[ -x "$FIVEG_VENV/bin/python" ]]; then
     PYTHON_BIN="$FIVEG_VENV/bin/python"
@@ -148,7 +148,7 @@ echo "  Phase 1 — Delete SGP NLC Policies (post-deploy step of deploy_all.sh)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-PREFIX=$(grep -oP '^prefix\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "")
+PREFIX=$(sed -n 's/^prefix[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "")
 
 # All food-court agent names that create_sgp_policy.sh may have been run against
 FOOD_COURT_AGENT_NAMES=("store_concierge" "pizza_specialist" "burger_specialist" "sushi_specialist")

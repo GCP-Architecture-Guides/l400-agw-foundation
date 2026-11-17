@@ -82,14 +82,14 @@ echo "  Path    : deploy_a2a_agent.py → AgentEngine.create()"
 echo "  Deps    : google-adk==2.5.0 + aiplatform==1.162.0 + a2a-sdk==1.1.2"
 echo ""
 
-# ── Venv: prefer fiveg-ran-agent (aiplatform==1.162.0, adk==2.5.0) ─────────
-FIVEG_VENV="$HOME/Desktop/Workspace/fiveg-ran-agent/foundation/.venv"
+# ── Venv: prefer project .venv (aiplatform + adk) ─────────
+FIVEG_VENV="${PROJECT_ROOT:-.}/.venv"
 LOCAL_VENV="$WORKSPACE/.venv"
 
 if [[ -x "$FIVEG_VENV/bin/python" ]]; then
   PYTHON="$FIVEG_VENV/bin/python"
   PIP="$FIVEG_VENV/bin/pip"
-  echo "  Using fiveg venv: $(${PYTHON} --version 2>&1)"
+  echo "  Using project .venv: $(${PYTHON} --version 2>&1)"
 elif [[ -x "$LOCAL_VENV/bin/python" ]]; then
   PYTHON="$LOCAL_VENV/bin/python"
   PIP="$LOCAL_VENV/bin/pip"
@@ -117,7 +117,7 @@ echo "✅ Dependencies ready."
 echo ""
 
 # ── Apply gateway patch ───────────────────────────────────────────────────────
-# Critical: must patch the venv we're using, not the local .venv (if using fiveg).
+# Critical: must patch the venv we're using, not the local .venv (if using project venv).
 VENV_DIR="$(dirname "$(dirname "$PYTHON")")"
 echo "▶ Applying gateway patch to $VENV_DIR ..."
 "$PYTHON" scripts/patch_sdk_for_rest_create.py \

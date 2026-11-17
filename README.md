@@ -13,7 +13,7 @@
 * [Task 5. Register Semantic Governance Policy (SGP)](#task-5)
 * [Task 6. Execute Red Team Security Gauntlet](#task-6) *(includes 🔬 After Lab 6: Re-Run Baseline Prompts)*
 
-**Scoring:** Each of the 6 tasks is graded independently as a **Goal worth 100 points**. You must score **80% or higher per goal** to pass.
+**Scoring:** Each of the 6 tasks is graded independently as a **Goal worth 100 points**. You must score **85% or higher per goal** to pass.
 
 ---
 
@@ -1233,4 +1233,4 @@ Each task is graded as an independent **Goal** worth **100 points** (normalized 
 | Task 5 | `goal-5-sgp-policy` | SGP Governance Policy + **🧪 Domain Quick Check** | 100 |
 | Task 6 | `goal-6-red-team-gauntlet` | Red Team Security Gauntlet (7 attacks + telemetry) | 100 |
 
-You must score **80% or higher on each goal** to pass that goal.
+You must score **85% or higher on each goal** to pass that goal.

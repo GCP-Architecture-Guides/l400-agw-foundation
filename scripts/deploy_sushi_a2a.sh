@@ -54,18 +54,18 @@ echo ""
 # Uses google-adk==2.5.0 + aiplatform==1.162.0 + a2a-sdk==1.1.2 (same stack as deploy_a2a_agent.py).
 # We reuse an existing venv from another project that already has them.
 # ---------------------------------------------------------------------------
-FIVEG_VENV="$HOME/Desktop/Workspace/fiveg-ran-agent/foundation/.venv"
-WORKSPACE_VENV="$HOME/Desktop/Workspace/.venv"
+FIVEG_VENV="${PROJECT_ROOT:-.}/.venv"
+WORKSPACE_VENV="${PROJECT_ROOT:-.}/lab1/.venv"
 
 # Preferred: Workspace venv (confirmed has vertexai.agent_engines.templates.a2a)
-# NOTE: fiveg venv is missing vertexai.agent_engines.templates.a2a — do not use as primary.
+# NOTE: project .venv may be missing vertexai.agent_engines.templates.a2a — do not use as primary.
 if [[ -x "$WORKSPACE_VENV/bin/python" ]]; then
   VENV312="$WORKSPACE_VENV"
   echo "▶ [1/3] Using Workspace root venv (has aiplatform==1.162.0 + adk==2.5.0)"
   echo "         $VENV312"
 elif [[ -x "$FIVEG_VENV/bin/python" ]]; then
   VENV312="$FIVEG_VENV"
-  echo "▶ [1/3] Using fiveg-ran-agent venv (fallback)"
+  echo "▶ [1/3] Using project .venv (fallback)"
   echo "         $VENV312"
 else
   echo "▶ [1/3] Creating .venv312 (will attempt install from available mirror)..."

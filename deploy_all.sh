@@ -120,11 +120,11 @@ for field in project_id region prefix agent_name; do
 done
 
 # Read shared values once — all scripts use these
-PROJECT_ID=$(grep -oP '^project_id\s*=\s*"\K[^"]+' terraform.tfvars)
-REGION=$(grep -oP '^location\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null \
-  || grep -oP '^region\s*=\s*"\K[^"]+' terraform.tfvars)
-PREFIX=$(grep -oP '^prefix\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "")
-AGENT_NAME=$(grep -oP '^agent_name\s*=\s*"\K[^"]+' terraform.tfvars 2>/dev/null || echo "my-agent")
+PROJECT_ID=$(sed -n 's/^project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars)
+REGION=$(sed -n 's/^location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null \
+  || sed -n 's/^region[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars)
+PREFIX=$(sed -n 's/^prefix[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "")
+AGENT_NAME=$(sed -n 's/^agent_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "my-agent")
 
 echo "✅ Pre-flight passed."
 echo "   Project : $PROJECT_ID  |  Region : $REGION  |  Agent : $AGENT_NAME"

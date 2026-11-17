@@ -49,7 +49,7 @@
 # Requirements:
 #   - gcloud auth active (gcloud auth print-access-token works)
 #   - terraform.tfvars populated with project_id, location, prefix
-#   - fiveg-ran-agent venv present (aiplatform==1.162.0, adk==2.5.0)
+#   - local .venv present (aiplatform==1.162.0, adk==2.5.0)
 #     OR local .venv (will be created by deploy_a2a_agents.sh)
 # ===========================================================================
 
@@ -81,17 +81,17 @@ if [[ ! -f "$TFVARS" ]]; then
   echo "❌ terraform.tfvars not found at $TFVARS"
   exit 1
 fi
-PROJECT=$(grep -oP '^project_id\s*=\s*"\K[^"]+' "$TFVARS")
-REGION=$(grep -oP '^location\s*=\s*"\K[^"]+' "$TFVARS" 2>/dev/null \
-         || grep -oP '^region\s*=\s*"\K[^"]+' "$TFVARS")
+PROJECT=$(sed -n 's/^project_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS")
+REGION=$(sed -n 's/^location[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS" 2>/dev/null \
+         || sed -n 's/^region[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS")
 
-# ── Resolve Python (fiveg venv preferred, local .venv fallback) ───────────────
-FIVEG_VENV="$HOME/Desktop/Workspace/fiveg-ran-agent/foundation/.venv"
+# ── Resolve Python (project .venv preferred, local .venv fallback) ───────────────
+FIVEG_VENV="${PROJECT_ROOT:-.}/.venv"
 LOCAL_VENV="$SCRIPT_DIR/.venv"
 
 if [[ -x "$FIVEG_VENV/bin/python" ]]; then
   PYTHON="$FIVEG_VENV/bin/python"
-  VENV_LABEL="fiveg venv (aiplatform==1.162.0, adk==2.5.0)"
+  VENV_LABEL="project .venv"
 elif [[ -x "$LOCAL_VENV/bin/python" ]]; then
   PYTHON="$LOCAL_VENV/bin/python"
   VENV_LABEL="local .venv"

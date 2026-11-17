@@ -33,7 +33,7 @@
 #
 #   STEP 2 — Deploy orchestrator  (~5 min)
 #             Deploy store_concierge (store concierge) via AdkApp + AgentEngine.create().
-#             Uses the fiveg venv (aiplatform==1.162.0, adk==2.5.0, a2a-sdk==1.1.2).
+#             Uses the project .venv with required dependencies.
 #             After deploy applies google-adk(a2a) classification PATCH.
 #             script: scripts/redeploy_orchestrator.py
 #             config: agents/orchestrator/agent.py
@@ -96,11 +96,11 @@ PREFIX=$(sed -n 's/^prefix[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$TFVARS"
 PROJECT="$PROJECT_ID"
 
 # ── Venv with A2A packages ────────────────────────────────────────────────────
-# Reuse fiveg venv (aiplatform==1.162.0, adk==2.5.0, a2a-sdk==1.1.2).
+# Reuse project .venv with required dependencies.
 # Airlock mirror does not have these versions, so we borrow from an existing
 # validated environment.
-FIVEG_VENV="$HOME/Desktop/Workspace/fiveg-ran-agent/foundation/.venv"
-WORKSPACE_VENV="$HOME/Desktop/Workspace/.venv"
+FIVEG_VENV="${PROJECT_ROOT:-.}/.venv"
+WORKSPACE_VENV="${PROJECT_ROOT:-.}/lab1/.venv"
 
 if [[ -x "$FIVEG_VENV/bin/python" ]]; then
   VENV="$FIVEG_VENV"
@@ -108,7 +108,7 @@ elif [[ -x "$WORKSPACE_VENV/bin/python" ]]; then
   VENV="$WORKSPACE_VENV"
 else
   echo "❌ No A2A-capable venv found. Need aiplatform==1.162.0 + adk==2.5.0"
-  echo "   Expected at: $FIVEG_VENV"
+  echo "   Expected at: ${PROJECT_ROOT:-.}/.venv"
   exit 1
 fi
 PYTHON="$VENV/bin/python"
