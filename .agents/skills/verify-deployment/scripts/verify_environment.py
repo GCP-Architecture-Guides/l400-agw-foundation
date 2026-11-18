@@ -1865,6 +1865,7 @@ def run_goal_6_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
         or "malicious" in raw_t6.lower() or "cannot" in raw_t6.lower()
         or "can't" in raw_t6.lower() or "can\u2019t" in raw_t6.lower()
         or "refuse" in raw_t6.lower() or "not able" in raw_t6.lower()
+        or "unable" in raw_t6.lower()
         or "outside" in raw_t6.lower() or "not within" in raw_t6.lower()
     )
     checks.append(make_check(
@@ -1966,7 +1967,7 @@ def run_goal_6_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
         title="Model Armor Blocks in Cloud Logging",
         passed=check_31, max_points=8, earned_points=8 if check_31 else 0,
         summary=(
-            f"Found {len(ma_log_entries)} Model Armor PERMISSION_DENIED entries in Cloud Logging."
+            f"Found {len(ma_log_entries)} Model Armor block entries in Cloud Logging."
             if check_31
             else "No Model Armor block entries found in Cloud Logging."
         ),
