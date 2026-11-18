@@ -1526,7 +1526,7 @@ def run_goal_5_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # 1.1 SGP Engine Active (15 pts)
     rc_sgpe, out_sgpe, err_sgpe = _run_cmd([
         gcloud_bin, "beta", "ai", "semantic-governance-policy-engine", "describe",
-        "--location", REGION, "--format", "json",
+        "--location", REGION, "--project", project_id, "--format", "json",
     ], timeout=30)
     sgpe_data = {}
     if rc_sgpe == 0:
@@ -1707,8 +1707,10 @@ def run_goal_5_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # 3.2 SGP Telemetry in Gateway Logs (15 pts)
     rc_log, out_log, _ = _run_cmd([
         gcloud_bin, "logging", "read",
-        'resource.type="networkservices.googleapis.com/AgentGateway"',
+        'resource.type="networkservices.googleapis.com/Gateway" AND '
+        'jsonPayload.serviceExtensionInfo.resource:"sgp-extension"',
         "--limit", "5", "--format", "json", "--freshness", "1h",
+        "--project", project_id,
     ], timeout=30)
     log_entries = []
     if rc_log == 0:
@@ -1725,7 +1727,7 @@ def run_goal_5_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
         summary=(
             f"Found {len(log_entries)} Agent Gateway log entries with SGP extension evaluations."
             if check_32
-            else f"No Agent Gateway log entries found (resource.type=networkservices.googleapis.com/AgentGateway)."
+            else f"No Agent Gateway log entries found (resource.type=networkservices.googleapis.com/Gateway, filter: sgp-extension)."
         ),
         evidence={"log_entry_count": len(log_entries), "has_sgp_logs": has_sgp_logs},
     ))
@@ -1942,8 +1944,9 @@ def run_goal_6_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # 3.1 Model Armor Blocks in Cloud Logging (8 pts)
     rc_log, out_log, _ = _run_cmd([
         gcloud_bin, "logging", "read",
-        'resource.type="networkservices.googleapis.com/AgentGateway" AND "PERMISSION_DENIED"',
+        'resource.type="networkservices.googleapis.com/Gateway" AND "PERMISSION_DENIED"',
         "--limit", "5", "--format", "json", "--freshness", "2h",
+        "--project", project_id,
     ], timeout=30)
     ma_log_entries = []
     if rc_log == 0:
