@@ -16,11 +16,6 @@
 # This demo code is not built for production workload.
 
 # ------------------------------------------------------------------------------
-# 5. AGENT DEPLOYMENT SCRIPTS (PYTHON SDK)
-# ------------------------------------------------------------------------------
-# Auto-generate the deployment script for the chat-agent based on Terraform variables
-# We generate a Python script because the gcloud CLI natively lacks the `reasoning-engines` command in this environment.
-# ------------------------------------------------------------------------------
 # 6. AGENT DEPLOYMENT SCRIPTS (PYTHON SDK)
 # ------------------------------------------------------------------------------
 # Gated by var.create_agent (default: true).
@@ -34,10 +29,10 @@ resource "local_file" "deploy_agent_script" {
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Project root = the folder containing this scripts/ directory (mod-agw-foundation-pub/).
+# Project root = the folder containing this scripts/ directory.
 # The deployable agent source lives at agents/chat-agent/ inside the project root.
 SCRIPT_DIR="$( cd "$( dirname "$0" )" &> /dev/null && pwd )"
-SCRIPT_WORKSPACE="$( dirname "$SCRIPT_DIR" )"  # = mod-agw-foundation-pub/
+SCRIPT_WORKSPACE="$( dirname "$SCRIPT_DIR" )"  # = project root
 
 # All relative paths below are relative to SCRIPT_WORKSPACE (the project root).
 cd "$SCRIPT_WORKSPACE"
@@ -158,7 +153,9 @@ echo "Writing agents/chat-agent/.env with project env vars..."
 cat > agents/chat-agent/.env << 'ENVEOF'
 GCP_PROJECT_ID=${var.project_id}
 GOOGLE_CLOUD_PROJECT=${var.project_id}
-GOOGLE_CLOUD_LOCATION=${var.location}
+# Gemini 3.x models (gemini-3.5-flash, etc.) require the global Vertex AI
+# endpoint. Setting to 'global' routes inference to aiplatform.googleapis.com.
+GOOGLE_CLOUD_LOCATION=global
 AGENT_GATEWAY_INGRESS=projects/${var.project_id}/locations/${var.location}/agentGateways/${var.prefix}-ingress-gateway
 AGENT_GATEWAY_EGRESS=projects/${var.project_id}/locations/${var.location}/agentGateways/${var.prefix}-egress-gateway
 # OTEL mTLS FIX (Layer 1): RE containers have mTLS certs — prevents SSL context corruption.
@@ -210,7 +207,7 @@ fi
 # ---------------------------------------------------------------------------
 # SDK BUNDLE: Copy lib/gateway_agent/ into agents/chat-agent/ so adk deploy
 # includes it in the Reasoning Engine deployment package.
-# The source of truth stays in mod-agw-foundation-pub/lib/gateway_agent/.
+# The source of truth stays in lib/gateway_agent/.
 # This copy is temporary — cleaned up immediately after deploy.
 # ---------------------------------------------------------------------------
 SDK_SRC="lib/gateway_agent"

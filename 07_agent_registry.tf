@@ -53,7 +53,7 @@ locals {
 # ------------------------------------------------------------------------------
 # Register each egress host as an Agent Registry service endpoint.
 # Uses null_resource + local-exec because google_agent_registry_service
-# requires provider >= 7.42.0 (installed: 7.38.0).
+# requires provider >= 7.42.0 (installed: 8.5.0).
 #
 # Idempotent: the || true suppresses the "already exists" error on re-apply.
 # The trigger is the host name — re-registers only if the host list changes.
@@ -117,9 +117,8 @@ resource "null_resource" "register_egress_endpoint" {
 # Fix: use null_resource + gcloud iam add-iam-policy-binding with || true.
 # This makes the grant idempotent:
 #   - Fresh project (SA doesn't exist yet): gcloud fails gracefully (|| true)
-#   - After first RE deploy: SA exists; scripts/deploy_chat_agent.sh and
-#     scripts/deploy_global_agent.sh both re-run terraform apply, which
-#     will then succeed and apply the grant.
+#   - After first RE deploy: SA exists; the deploy script re-runs terraform
+#     apply, which will then succeed and apply the grant.
 # ------------------------------------------------------------------------------
 resource "null_resource" "re_agent_registry_viewer" {
   triggers = {

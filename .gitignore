@@ -217,8 +217,11 @@ template/
 test-agent/
 
 # -----------------------------------------------------------------------------
-# Lab 1 (Lab 5 prerequisite) — reference only, not needed in published repo
+# Lab 5 prerequisite agent code — reference only, not needed in published repo
 # The .venv/ inside is especially large (100s of MB)
 # -----------------------------------------------------------------------------
 lab1/
+
+# Dangerous: runs terraform destroy in a loop despite its filename
+wait_for_psc.sh
 

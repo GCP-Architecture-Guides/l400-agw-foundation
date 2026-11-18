@@ -22,7 +22,7 @@
 #
 # When consuming this repo as a Terraform module from another project:
 #   module "agw_foundation" {
-#     source               = "github.com/your-org/mod-agw-foundation"
+#     source               = "github.com/GCP-Architecture-Guides/l400-agw-foundation"
 #     project_id           = "my-team-project"
 #     region               = "us-east1"
 #     prefix               = "my-team"
@@ -376,21 +376,27 @@ variable "agent_name" {
   default     = "chat-agent-v1"
 }
 
+# NOTE: agent_description, agent_department, agent_team, and agent_role are
+# informational metadata set in terraform.tfvars. They are passed to the deploy
+# script via the TF-generated deploy_chat_agent.sh template (when create_agent=true)
+# and appear in OTEL telemetry as env vars. They are NOT used by any Terraform
+# resource directly.
+
 variable "agent_description" {
   type        = string
-  description = "A description of what the agent does."
+  description = "A description of what the agent does. Used in OTEL telemetry env vars."
   default     = "A sample chat agent with telemetry and gateway routing."
 }
 
 variable "agent_department" {
   type        = string
-  description = "The department label for the agent."
+  description = "The department label for the agent. Used in OTEL telemetry env vars."
   default     = "engineering"
 }
 
 variable "agent_team" {
   type        = string
-  description = "The team label for the agent."
+  description = "The team label for the agent. Used in OTEL telemetry env vars."
   default     = "sec-ops"
 }
 
@@ -434,12 +440,16 @@ variable "allowed_egress_hosts" {
 
 variable "agent_role" {
   type        = string
-  description = "The role label for the agent telemetry."
+  description = "The role label for the agent telemetry. Used in OTEL telemetry env vars."
   default     = "customer-support"
 }
 
 # ==============================================================================
 # SGP SEMANTIC GOVERNANCE POLICY
+# ==============================================================================
+# NOTE: sgp_nlc_constraint is informational — it documents the NLC constraint
+# for reference. The actual SGP policy is created by scripts/create_sgp_policy.sh
+# which reads agent_name and agent_description from terraform.tfvars directly.
 # ==============================================================================
 
 variable "sgp_nlc_constraint" {
@@ -464,6 +474,11 @@ variable "sgp_nlc_constraint" {
 
 # ==============================================================================
 # IAP (Identity-Aware Proxy) — Ingress Identity Enforcement
+# ==============================================================================
+# NOTE: iap_allowed_members is informational — it documents which identities
+# should have IAP access. The IAP authz extension is created by Terraform in
+# 03_security_and_gateways.tf, and the RE service agent is auto-granted.
+# Additional members listed here serve as documentation for manual IAM grants.
 # ==============================================================================
 # IAP — Ingress Service Identity
 # ==============================================================================

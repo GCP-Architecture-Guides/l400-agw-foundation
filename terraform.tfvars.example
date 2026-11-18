@@ -9,7 +9,7 @@
 
 # ── Antigravity anchor comments (required for Path C) ──────────────────────
 # FOUNDATION_ROOT: ./
-# AGENT_PATH: lab1/agents/trial_matching_supervisor
+# AGENT_PATH: agents/chat-agent
 # DEPLOY_TARGET: reasoning_engine
 
 # =========================================================================
@@ -32,7 +32,7 @@ agent_team       = "trialshield_mesh"
 agent_role       = "trial_orchestrator"
 
 # =========================================================================
-# AGENT PROVISIONING — Lab 1 agent already deployed, skip TF agent creation
+# AGENT PROVISIONING — Lab 5 agent already deployed, skip TF agent creation
 # =========================================================================
 create_agent = false
 

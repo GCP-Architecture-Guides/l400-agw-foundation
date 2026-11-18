@@ -19,7 +19,7 @@
 # 1. API ENABLEMENT
 #
 # NOTE: cloudresourcemanager and agentregistry are enabled via gcloud in
-# deploy_all.sh Phase 0 BEFORE terraform runs. Terraform needs the CRM API
+# the bootstrap script BEFORE terraform runs. Terraform needs the CRM API
 # just to call any GCP endpoint — it cannot enable itself from cold. These
 # resources below bring them into Terraform state after the bootstrap.
 # For manual runs (Path B/C): run the bootstrap command first:

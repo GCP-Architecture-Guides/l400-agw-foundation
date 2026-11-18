@@ -37,7 +37,7 @@
 #
 # The script names SGP policies consistently as:
 #   {prefix}-{agent_name}-sgp
-# so destroy_all.sh can find and delete them by the same pattern.
+# so cleanup scripts can find and delete them by the same pattern.
 # =============================================================================
 
 set -euo pipefail
@@ -61,8 +61,8 @@ if [[ -z "$REGION" ]]; then
   exit 1
 fi
 PREFIX=$(sed -n 's/^prefix[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "")
-# AGENT_NAME: env var override takes priority over terraform.tfvars
-# This allows deploy_all.sh to call this script in a loop for each food-court agent.
+# AGENT_NAME: env var override takes priority over terraform.tfvars.
+# This allows callers to override the agent name when creating policies for multiple agents.
 AGENT_NAME="${AGENT_NAME:-$(sed -n 's/^agent_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "my-agent")}"
 AGENT_DESC=$(sed -n 's/^agent_description[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' terraform.tfvars 2>/dev/null || echo "")
 
@@ -71,7 +71,7 @@ if [[ -z "$PROJECT_ID" ]]; then
   exit 1
 fi
 
-# ── Derive policy name (consistent pattern for destroy_all.sh to find) ──────
+# ── Derive policy name (consistent naming convention) ──────
 SAFE_AGENT=$(echo "$AGENT_NAME" | tr '[:upper:]' '[:lower:]' | tr '_' '-' | tr ' ' '-')
 SGP_POLICY_NAME="${SGP_POLICY_NAME:-${PREFIX:+${PREFIX}-}${SAFE_AGENT}-sgp}"
 

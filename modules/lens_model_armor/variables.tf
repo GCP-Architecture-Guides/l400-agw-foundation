@@ -25,7 +25,7 @@ variable "cloud_run_service_name" {
 
 variable "armor_layers" {
   type        = list(string)
-  description = "Model Armor enforcement layers to emit metrics for."
+  description = "Model Armor enforcement layers to emit metrics for. Currently unused — reserved for future per-layer dashboards."
   default     = ["api", "supervisor", "gateway_ingress"]
 }
 

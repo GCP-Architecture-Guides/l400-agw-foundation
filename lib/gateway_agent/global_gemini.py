@@ -27,7 +27,7 @@ TWO DEPLOYMENT MODES — controlled by container env vars, not code:
     Model availability: gemini-2.5-flash, gemini-2.5-pro (confirmed)
 
   Global (gemini-3.5-flash, gemini-3.1-flash-lite, etc.):
-    Deploy with: scripts/deploy_global_agent.sh
+    Deploy with: scripts/deploy_chat_agent.sh
     Container env: GOOGLE_CLOUD_LOCATION=global
     ADK Gemini constructs: https://aiplatform.googleapis.com/...
     Agent Gateway SWP routes to global Vertex AI frontend.

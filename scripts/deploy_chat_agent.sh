@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Project root = the folder containing this scripts/ directory (mod-agw-foundation-pub/).
+# Project root = the folder containing this scripts/ directory.
 # The deployable agent source lives at agents/chat-agent/ inside the project root.
 SCRIPT_DIR="$( cd "$( dirname "$0" )" &> /dev/null && pwd )"
-SCRIPT_WORKSPACE="$( dirname "$SCRIPT_DIR" )"  # = mod-agw-foundation-pub/
+SCRIPT_WORKSPACE="$( dirname "$SCRIPT_DIR" )"  # = project root
 
 # All relative paths below are relative to SCRIPT_WORKSPACE (the project root).
 cd "$SCRIPT_WORKSPACE"
@@ -194,7 +194,7 @@ fi
 # ---------------------------------------------------------------------------
 # SDK BUNDLE: Copy lib/gateway_agent/ into agents/chat-agent/ so adk deploy
 # includes it in the Reasoning Engine deployment package.
-# The source of truth stays in mod-agw-foundation-pub/lib/gateway_agent/.
+# The source of truth stays in lib/gateway_agent/.
 # This copy is temporary — cleaned up immediately after deploy.
 # ---------------------------------------------------------------------------
 SDK_SRC="lib/gateway_agent"

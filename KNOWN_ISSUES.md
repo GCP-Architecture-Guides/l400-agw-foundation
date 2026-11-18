@@ -1,9 +1,9 @@
 # Known Issues & Rollback Runbook
 
-> **Project:** `YOUR_PROJECT_ID` · **Foundation:** `mod-agw-foundation` · **Last Updated:** 2026-07-29
+> **Project:** `YOUR_PROJECT_ID` · **Foundation:** `l400-agw-foundation` · **Last Updated:** 2026-07-29
 
 This document is the complete, honest record of every bug encountered deploying
-the Agent Gateway foundation and the `chat-agent-v2` Reasoning Engine. Each issue
+the Agent Gateway foundation and the Reasoning Engine. Each issue
 is recorded chronologically, with root cause, all attempted fixes (including the
 ones that failed), the final resolution, and a rollback procedure.
 
@@ -47,7 +47,7 @@ path, not the request path.
 
 ### Root Cause
 
-The authz extension `acme-corp-ma-extension` was configured with the same Model Armor
+The authz MA extension was configured with the same Model Armor
 template for both request and response screening:
 
 ```hcl
@@ -109,7 +109,7 @@ To restore response screening (if/when the platform changes its transcoding form
 ```bash
 # In 03_security_and_gateways.tf, add back to model_armor_settings:
 #   response_template_id = "projects/${var.project_id}/locations/${var.location}/templates/security-high"
-cd mod-agw-foundation-pub
+cd l400-agw-foundation
 terraform apply -target=google_network_services_authz_extension.ma_extension -auto-approve
 ```
 
@@ -446,14 +446,14 @@ preserved as-is in the RE container environment.
 ### Rollback Procedure
 
 ```bash
-# From mod-agw-foundation-pub/ project root:
+# From l400-agw-foundation/ project root:
 bash scripts/deploy_chat_agent.sh
 ```
 
 ### Files Changed
 
 - `scripts/deploy_chat_agent.sh`: Added 5 OTEL fix env vars to `.env` heredoc
-- `skills/gateway-agent-sdk/SKILL.md`: Full 3-layer OTEL fix documented in Lesson #9
+- `skills/gateway-agent-sdk/SKILL.md` (internal documentation): Full 3-layer OTEL fix documented in Lesson #9
 
 ---
 
@@ -533,9 +533,9 @@ are removed.
 ```bash
 # If you see 400 FAILED_PRECONDITION with all 4 org policy constraints:
 # 1. Delete the existing stale .venv
-rm -rf /path/to/mod-agw-foundation-pub/.venv
+rm -rf /path/to/l400-agw-foundation/.venv
 # 2. Redeploy — the script will rebuild .venv with pinned versions
-bash deploy_all.sh
+bash scripts/deploy_chat_agent.sh
 ```
 
 ---
@@ -685,7 +685,7 @@ None available through the Agent Gateway API. Full closure would require the API
 **Severity:** Critical — ALL outbound LLM calls, OTEL, and session calls silently fail  
 **Discovered:** 2026-07-xx (charter-poc-test) · **Confirmed + Fixed:** 2026-08-03 (geap-agw)  
 
-> See also: `skills/agw-egress-iap-pitfall/SKILL.md` for full root cause and diagnostic commands.
+> See also: `skills/agw-egress-iap-pitfall/SKILL.md` (internal documentation) for full root cause and diagnostic commands.
 
 ### Symptom
 
@@ -865,8 +865,8 @@ terraform apply -target=google_network_services_authz_extension.iap_extension_eg
 
 ```bash
 # Run guardrail tests — ALLOW cases must still pass
-.venv/bin/python test-agent/run_guardrail_tests.py \
-  --project YOUR_PROJECT_ID --location YOUR_REGION --agent-name chat_agent
+bash scripts/red_team_gauntlet.sh \
+  --project YOUR_PROJECT_ID --location YOUR_REGION --agent-name trial_matching_supervisor
 ```
 
 If ALLOW tests fail (empty responses), check IAP logs for `code: 7` (PERMISSION_DENIED)
@@ -900,7 +900,7 @@ Then `terraform apply` to reconcile state.
 
 **Status:** 🔴 Open — platform bug (P2 High), filed with Google Support  
 **Severity:** P2 High — IAP identity enforcement on egress is non-functional  
-**Project:** `charter-poc-test` (185602934768)  
+**Project:** `YOUR_PROJECT_ID` (PROJECT_NUMBER)  
 **Discovered:** 2026-08-04  
 
 ### The Two Must-Have Sanity Checks
@@ -922,7 +922,7 @@ gcloud logging read \
 # Expected: clientCertChainVerified=true, clientCertValidEndTime ≠ 1970-01-01
 ```
 
-Or just run: `bash scripts/check_agent_health.sh [RE_ID]`
+Or just run (internal tooling): `bash scripts/check_agent_health.sh [RE_ID]`
 
 ### Summary
 
@@ -938,15 +938,15 @@ principal from the mTLS subject. IAP's `AuthorizeUser` sees `principal=(empty)`
 and returns `code=7` (PERMISSION_DENIED). Result: IAP ENFORCED on egress blocks
 100% of traffic even with correct `iap.egressor` grants.
 
-### Affected REs (charter-poc-test, 2026-08-04)
+### Affected REs (example, 2026-08-04)
 
 | Display Name | RE ID | identityType | effectiveIdentity | Cert Valid? |
 |---|---|---|---|---|
-| ran-insights | 3683469506165866496 | AGENT_IDENTITY | ✅ populated | ❌ epoch |
-| ran-usecase | 552060390259818496 | AGENT_IDENTITY | ✅ populated | ❌ epoch |
-| ran-anomaly | 5588492148543586304 | AGENT_IDENTITY | ✅ populated | ❌ epoch |
-| ran-security | 4315099353904578560 | AGENT_IDENTITY | ✅ populated | ❌ epoch |
-| ran-orchestrator | 8650939895155523584 | AGENT_IDENTITY | ✅ populated | ❌ epoch |
+| (your-agent-1) | (RE_ID_1) | AGENT_IDENTITY | ✅ populated | ❌ epoch |
+| (your-agent-2) | (RE_ID_2) | AGENT_IDENTITY | ✅ populated | ❌ epoch |
+| (your-agent-3) | (RE_ID_3) | AGENT_IDENTITY | ✅ populated | ❌ epoch |
+| (your-agent-4) | (RE_ID_4) | AGENT_IDENTITY | ✅ populated | ❌ epoch |
+| (your-agent-5) | (RE_ID_5) | AGENT_IDENTITY | ✅ populated | ❌ epoch |
 
 100% of cert fingerprints across all replicas = `chainVerified=false`, `expiry=1970-01-01`.
 
@@ -994,13 +994,13 @@ All egress traffic passes. IAP logs audit entries but never blocks.
 ```bash
 # 1. Deploy any RE with AGENT_IDENTITY (foundation does this by default via gateway patch)
 # 2. Run the health check
-bash scripts/check_agent_health.sh RE_ID
+bash scripts/check_agent_health.sh RE_ID  # internal tooling
 # Check 2 will show: INVALID|chainVerified=false|expiry=1970-01-01
 
 # 3. Confirm via gateway logs directly
 gcloud logging read \
   'resource.type="networkservices.googleapis.com/Gateway" AND jsonPayload.mtls.clientCertPresent="true"' \
-  --project=charter-poc-test --limit=5 --format=json
+  --project=YOUR_PROJECT_ID --limit=5 --format=json
 ```
 
 ### Questions for Google Support

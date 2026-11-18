@@ -104,11 +104,11 @@ _OTEL_VARS = [
     ("GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY",         "true"),
     ("OTEL_SEMCONV_STABILITY_OPT_IN",                      "gen_ai_latest_experimental"),
     ("OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT", "EVENT_ONLY"),
-    ("agent_name", "chat-agent-v1"),
-    ("agent_description", "A foundational chat agent demonstrating security integrations."),
-    ("agent_department", "engineering"),
-    ("agent_team", "sec-ops"),
-    ("agent_role", "customer-support"),
+    ("agent_name", "trial_matching_supervisor"),
+    ("agent_description", "Root orchestrator for the Aegis TrialShield oncology clinical trial matching mesh."),
+    ("agent_department", "clinical_operations"),
+    ("agent_team", "trialshield_mesh"),
+    ("agent_role", "trial_orchestrator"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -600,8 +600,8 @@ def main():
     parser.add_argument("--ingress", required=True)
     parser.add_argument("--egress",  required=True)
     parser.add_argument("--agent-name", default="chat-agent-v1", help="Name of the agent to deploy")
-    parser.add_argument("--venv",    default="agentic-lens/.venv",
-                        help="Path to the ADK venv (default: agentic-lens/.venv)")
+    parser.add_argument("--venv",    default=".venv",
+                        help="Path to the ADK venv (default: .venv)")
     args = parser.parse_args()
 
     try:

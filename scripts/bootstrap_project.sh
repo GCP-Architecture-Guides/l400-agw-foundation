@@ -28,7 +28,7 @@
 #
 # Examples:
 #   bash scripts/bootstrap_project.sh YOUR_PROJECT_ID     us-central1
-#   bash scripts/bootstrap_project.sh agentic-security-qa  us-central1
+#   bash scripts/bootstrap_project.sh my-gcp-project      us-central1
 #   bash scripts/bootstrap_project.sh YOUR_PROJECT_ID us-central1
 #
 # Required caller role:
@@ -72,7 +72,7 @@ echo "▶ [1/1] Applying custom org policies (enforce: true at project level)...
 echo ""
 
 echo "▶ Custom Org Policies are now natively managed and enforced via Terraform"
-echo "  (see mod-agw-foundation/org_policies.tf)"
+echo "  (see 05_org_policies.tf)"
 echo ""
 
 echo "✅  Bootstrap complete for $PROJECT — ready to run Cloud Build."

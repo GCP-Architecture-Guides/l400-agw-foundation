@@ -367,7 +367,7 @@ resource "google_network_security_authz_policy" "egress_sgp_policy" {
 # ==============================================================================
 # ⛔ DO NOT ADD IAP REQUEST_AUTHZ TO THE EGRESS GATEWAY — EVER
 # ==============================================================================
-# Post-mortem: 2026-08-03, charter-poc-test (185602934768)
+# Post-mortem: 2026-08-03, internal test project
 # Impact: ALL Reasoning Engines → zero LLM responses for ~2 days
 # Root cause: IAP REQUEST_AUTHZ on egress blocks all outbound HTTP because
 #   RE containers do NOT carry IAP tokens on outbound calls.

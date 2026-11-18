@@ -140,7 +140,6 @@ l400-agw-foundation/                ← repo root (you are here after git clone 
 │   ├── provision_sgp_engine.sh      ← Auto-provisions SGP engine (called by Terraform)
 │   ├── red_team_gauntlet.sh         ← Security gauntlet (Task 6)
 │   └── discover_lab1_resources.sh   ← Lab 5 resource discovery
-├── lab1/                            ← Lab 5 code (reference only)
 └── README.md
 ```
 
@@ -179,10 +178,7 @@ Steps:
 ### 🔬 Before Lab 6: Security Baseline Test
 
 > [!IMPORTANT]
-> **Before you start Lab 6, test your Lab 5 agent's existing defenses.** Paste the 5 prompts below into the Agent Playground for your **Lab 5 Reasoning Engine**. Record the responses — you'll re-run these **same prompts** after Lab 6 (Task 6) to see what changed.
->
-> **Agent Playground URL:**
-> `https://console.cloud.google.com/vertex-ai/agents/reasoningEngines/[LAB1_RE_ID]/playground?project=[YOUR_PROJECT_ID]&region=us-central1`
+> **Before you start Lab 6, test your Lab 5 agent's existing defenses.** Paste the 5 prompts below into **Gemini Enterprise** or the **Agent Platform Playground** for your Lab 5 Reasoning Engine. Record the responses — you'll re-run these **same prompts** after Lab 6 (Task 6) to see what changed.
 
 #### Baseline Prompt 1 — Raw PII Passthrough (HIPAA/GINA)
 
@@ -423,7 +419,7 @@ Terraform reads `terraform.tfvars` and creates approximately **99 GCP resources*
 >
 > 1. **`iamconnectors.googleapis.com` — Permission Denied.** This API is not available in all projects. The resource is already commented out in `01_apis.tf` (lines 96-99). If you hit this, verify it's commented out.
 >
-> 2. **Egress Gateway `network_config` validation failure.** The `dns_peering_config` block is active in `02_network.tf` (lines 175-184) and is required for SGP to work. If validation fails on your Terraform provider version, temporarily comment out the `network_config` block, run `terraform apply`, then apply the `network_config` manually via the REST API as a post-deploy step. See Code Changes §9.
+> 2. **Egress Gateway `network_config` — commented out.** The `network_config` block (PSC network attachment + DNS peering) is commented out in `02_network.tf` because aiohttp sends IP-literal CONNECT requests that SWP can't match, causing all egress to hit `default_denied`. Egress content screening works via CONTENT_AUTHZ policies without network-level capture. See Code Changes §9.
 >
 > 3. **Org policy resources — `PERMISSION_DENIED`.** Expected when `enable_org_policies = false`. These resources are skipped entirely. If you see errors, double-check that `enable_org_policies = false` in `terraform.tfvars`.
 >
@@ -891,17 +887,13 @@ the LLM. This counts as PASS.
 If Model Armor returns HTTP 403 "Prompt violates content security configurations",
 that is the strongest possible block — the prompt never reached the LLM.
 
-For manual testing, use the Agent Playground:
-https://console.cloud.google.com/vertex-ai/agents/reasoningEngines/[RE_ID]/playground?project=[YOUR_PROJECT_ID]&region=us-central1
+For manual testing, use Gemini Enterprise or the Agent Platform Playground.
 ```
 
 ### 🔬 After Lab 6: Re-Run Baseline Prompts
 
 > [!IMPORTANT]
-> **Now re-run the same 5 baseline prompts from Step 0** against your **Reasoning Engine** (now with Agent Gateway config from Task 3). Compare the results to see what changed.
->
-> **Agent Playground URL:**
-> `https://console.cloud.google.com/vertex-ai/agents/reasoningEngines/[RE_ID]/playground?project=[YOUR_PROJECT_ID]&region=us-central1`
+> **Now re-run the same 5 baseline prompts from Step 0** in **Gemini Enterprise** or the **Agent Platform Playground** for your Reasoning Engine (now with Agent Gateway config from Task 3). Compare the results to see what changed.
 
 Paste the same 5 prompts from Step 0's "Before Lab 6: Security Baseline Test" section. Here's what you should see now:
 
@@ -1196,20 +1188,25 @@ resource "google_project_iam_member" "gw_sa_agentgateway_network_user"   { ... }
 resource "google_project_iam_member" "gw_sa_agentgateway_dns_reader"     { ... }
 ```
 
-### 9. `02_network.tf` — Egress gateway `network_config` uncommented
+### 9. `02_network.tf` — Egress gateway `network_config` commented out
 ```hcl
-  # network_config — enables DNS peering so the egress gateway can resolve
-  # sgp.internal.gemini-corp → PSC endpoint IP via the project's private DNS zone.
-  network_config {
-    egress {
-      network_attachment = google_compute_network_attachment.psc_network_attachment.id
-    }
-    dns_peering_config {
-      target_project = var.project_id
-      target_network = google_compute_network.vpc.id
-      domains        = ["sgp.internal.gemini-corp."]
-    }
-  }
+  # REMOVED: network_config with PSC networkAttachment.
+  # Root cause: aiohttp (used by ADK/Vertex SDK) sends IP-literal CONNECT
+  # requests through the PSC tunnel. SWP URL-map rules can't match IP-literal
+  # hostnames → all requests hit the default_denied rule → empty responses.
+  # Egress content screening works via CONTENT_AUTHZ policies without
+  # network-level capture; removing network_config does NOT disable governance.
+  #
+  # network_config {
+  #   egress {
+  #     network_attachment = google_compute_network_attachment.psc_network_attachment.id
+  #   }
+  #   dns_peering_config {
+  #     target_project = var.project_id
+  #     target_network = google_compute_network.vpc.id
+  #     domains        = ["sgp.internal.gemini-corp."]
+  #   }
+  # }
 ```
 
 > [!IMPORTANT]
