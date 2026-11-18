@@ -777,10 +777,10 @@ Find the Agent Identity SA for each deployed RE:
 
 ```bash
 # Get the Agent Identity SA for a specific RE
-gcloud ai reasoning-engines describe RE_ID \
-  --project=YOUR_PROJECT_ID \
-  --location=YOUR_REGION \
-  --format="json(spec.identityType, spec.serviceAccount)"
+TOKEN=$(gcloud auth print-access-token)
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://REGION-aiplatform.googleapis.com/v1/projects/YOUR_PROJECT_ID/locations/YOUR_REGION/reasoningEngines/RE_ID" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps({'identityType': d.get('spec',{}).get('identityType','NOT SET'), 'serviceAccount': d.get('spec',{}).get('serviceAccount','NOT SET')}, indent=2))"
 
 # Example output:
 # {
@@ -909,9 +909,10 @@ Before debugging anything else, always verify:
 
 ```bash
 # Check 1: agentGatewayConfig ≠ {} (gateway patch fired)
-gcloud ai reasoning-engines describe RE_ID \
-  --project=PROJECT --location=REGION \
-  --format="json(spec.agentGatewayConfig)"
+TOKEN=$(gcloud auth print-access-token)
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION/reasoningEngines/RE_ID" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('spec',{}).get('deploymentSpec',{}).get('agentGatewayConfig',{}), indent=2))"
 # Expected: populated JSON, not {}
 
 # Check 2: mTLS cert timestamp ≠ 1970-01-01 (cert provisioned)

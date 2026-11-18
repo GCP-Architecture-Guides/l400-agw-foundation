@@ -504,8 +504,6 @@ graph LR
 
 > [!NOTE]
 > Your Lab 5 RE must have `identityType=AGENT_IDENTITY` set. If it shows `NOT SET`, redeploy the agent in Lab 5 first. The Antigravity Prompt below will verify this automatically.
->
-> If `gcloud ai reasoning-engines` returns "Invalid choice: 'reasoning-engines'", use `gcloud beta ai reasoning-engines` instead.
 
 ### Antigravity Prompt
 
@@ -523,11 +521,11 @@ Model Armor enforces.
 Reference: https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-gateway-runtime-deploy#agent-to-anywhere
 
 Steps:
-1. Get the Lab 5 RE ID:
-   gcloud ai reasoning-engines list \
-     --location=us-central1 --project=[YOUR_PROJECT_ID] \
-     --format="value(name)" --filter="displayName=trial_matching_supervisor"
-   Extract the numeric RE ID from the resource name.
+1. Get the Lab 5 RE ID using the REST API:
+   TOKEN=$(gcloud auth print-access-token)
+   curl -s -H "Authorization: Bearer $TOKEN" \
+     "https://us-central1-aiplatform.googleapis.com/v1/projects/[YOUR_PROJECT_ID]/locations/us-central1/reasoningEngines"
+   Find the engine with displayName=trial_matching_supervisor and extract the numeric RE ID from the resource name.
 
 2. Verify identityType=AGENT_IDENTITY is already set:
    TOKEN=$(gcloud auth print-access-token)
@@ -598,9 +596,9 @@ Steps:
 
 ```bash
 TOKEN=$(gcloud auth print-access-token)
-RE_ID=$(gcloud ai reasoning-engines list \
-  --location=us-central1 --project=[YOUR_PROJECT_ID] \
-  --format="value(name)" --filter="displayName=trial_matching_supervisor" | grep -o '[0-9]*$')
+RE_ID=$(curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://us-central1-aiplatform.googleapis.com/v1/projects/[YOUR_PROJECT_ID]/locations/us-central1/reasoningEngines" \
+  | python3 -c "import sys,json; engines=json.load(sys.stdin).get('reasoningEngines',[]); [print(e['name'].split('/')[-1]) for e in engines if e.get('displayName')=='trial_matching_supervisor']")
 
 curl -s -X POST \
   -H "Authorization: Bearer $TOKEN" \
@@ -618,9 +616,9 @@ curl -s -X POST \
 ```bash
 # Confirm agentGatewayConfig is set
 TOKEN=$(gcloud auth print-access-token)
-RE_ID=$(gcloud ai reasoning-engines list \
-  --location=us-central1 --project=[YOUR_PROJECT_ID] \
-  --format="value(name)" --filter="displayName=trial_matching_supervisor" | grep -o '[0-9]*$')
+RE_ID=$(curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://us-central1-aiplatform.googleapis.com/v1/projects/[YOUR_PROJECT_ID]/locations/us-central1/reasoningEngines" \
+  | python3 -c "import sys,json; engines=json.load(sys.stdin).get('reasoningEngines',[]); [print(e['name'].split('/')[-1]) for e in engines if e.get('displayName')=='trial_matching_supervisor']")
 
 curl -s -H "Authorization: Bearer $TOKEN" \
   "https://us-central1-aiplatform.googleapis.com/v1/projects/[YOUR_PROJECT_ID]/locations/us-central1/reasoningEngines/$RE_ID" \

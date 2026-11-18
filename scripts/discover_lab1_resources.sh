@@ -90,14 +90,32 @@ print_status() {
 # =============================================================================
 echo -e "${BOLD}▸ Discovering Reasoning Engines...${NC}"
 
-RE_LIST_JSON=$(gcloud ai reasoning-engines list \
-  --project="$PROJECT_ID" \
-  --region="$REGION" \
-  --format=json 2>/dev/null) || {
-  echo -e "${RED}  Failed to list Reasoning Engines. Check permissions & APIs.${NC}"
-  RE_LIST_JSON="[]"
-  ((ERRORS++)) || true
+TOKEN=$(gcloud auth print-access-token 2>/dev/null) || {
+  echo -e "${RED}  Failed to get access token. Run: gcloud auth login${NC}"
+  TOKEN=""
 }
+
+RE_API_RESPONSE=""
+if [[ -n "$TOKEN" ]]; then
+  RE_API_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" \
+    "https://${REGION}-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/${REGION}/reasoningEngines" 2>/dev/null) || true
+fi
+
+# Convert REST response to a JSON array matching gcloud format
+RE_LIST_JSON=$(echo "$RE_API_RESPONSE" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    engines = data.get('reasoningEngines', [])
+    print(json.dumps(engines))
+except:
+    print('[]')
+" 2>/dev/null) || RE_LIST_JSON="[]"
+
+if [[ "$RE_LIST_JSON" == "[]" && -z "$RE_API_RESPONSE" ]]; then
+  echo -e "${RED}  Failed to list Reasoning Engines. Check permissions & APIs.${NC}"
+  ((ERRORS++)) || true
+fi
 
 RE_COUNT=$(echo "$RE_LIST_JSON" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
 echo -e "  Found ${BOLD}${RE_COUNT}${NC} Reasoning Engine(s) in ${REGION}"
