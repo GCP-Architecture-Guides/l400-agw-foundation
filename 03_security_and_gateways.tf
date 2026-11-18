@@ -36,7 +36,7 @@ resource "google_data_loss_prevention_inspect_template" "identification_template
   parent       = "projects/${var.project_id}/locations/${var.location}"
   template_id  = "identification-template"
   display_name = "Identification template"
-  description  = "Detects PII (name, SSN, DOB, address, phone, email, credit card), GCP credentials, and medical/FDA/ICD codes."
+  description  = "Detects PII (name, SSN, DOB, address, phone, email, credit card), GCP credentials, and ICD/blood-type codes."
   depends_on   = [google_project_service.dlp]
 
   inspect_config {
@@ -53,10 +53,8 @@ resource "google_data_loss_prevention_inspect_template" "identification_template
     info_types { name = "GCP_CREDENTIALS" }
     info_types { name = "CREDIT_CARD_NUMBER" }
     info_types { name = "BLOOD_TYPE" }
-    info_types { name = "FDA_CODE" }
     info_types { name = "ICD10_CODE" }
     info_types { name = "ICD9_CODE" }
-    info_types { name = "MEDICAL_TERM" }
   }
 }
 
@@ -81,10 +79,8 @@ resource "google_data_loss_prevention_deidentify_template" "deidentify_template"
         info_types { name = "GCP_CREDENTIALS" }
         info_types { name = "CREDIT_CARD_NUMBER" }
         info_types { name = "BLOOD_TYPE" }
-        info_types { name = "FDA_CODE" }
         info_types { name = "ICD10_CODE" }
         info_types { name = "ICD9_CODE" }
-        info_types { name = "MEDICAL_TERM" }
 
         primitive_transformation {
           replace_with_info_type_config = true
