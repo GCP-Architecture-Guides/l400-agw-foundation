@@ -226,3 +226,4 @@ lab1/
 # Dangerous: runs terraform destroy in a loop despite its filename
 wait_for_psc.sh
 
+lab1_resources.json
