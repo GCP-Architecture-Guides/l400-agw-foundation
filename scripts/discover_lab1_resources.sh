@@ -135,7 +135,7 @@ for e in engines:
         # Extract numeric ID from resource name
         name = e.get('name','')
         rid = name.split('/')[-1] if '/' in name else name
-        state = e.get('state','UNKNOWN')
+        state = e.get('state', 'ACTIVE')  # REST API omits state; if listed, it's active
         create_time = e.get('createTime','')
         print(f'{rid}|{state}|{name}|{create_time}')
         break
@@ -159,7 +159,7 @@ for e in engines:
     name = e.get('name','')
     rid = name.split('/')[-1] if '/' in name else name
     dn = e.get('displayName','N/A')
-    state = e.get('state','UNKNOWN')
+    state = e.get('state','ACTIVE')  # REST API omits state; if listed, it's active
     marker = ' ◄── TARGET' if dn == '${RE_DISPLAY_NAME}' else ''
     print(f'    {dn:40s}  ID: {rid:25s}  State: {state}{marker}')
 " 2>/dev/null || true
