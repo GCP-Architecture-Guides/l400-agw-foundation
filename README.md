@@ -623,6 +623,11 @@ PHASE 3 — Rebuild the RE in-place with gateway flags:
    This rebuilds the container image with the gateway CA injected and
    updates the existing RE in-place. Takes ~5-10 minutes.
 
+    ⚡ Wait 1–2 minutes after the rebuild completes before running the
+    security tests below. Model Armor needs time to start screening
+    the new Cloud Run revision. If the first injection test returns
+    HTTP 200 instead of 403, wait a minute and retry.
+
 PHASE 4 — Verify everything works:
 
 9. Quick security test — prompt injection (Model Armor should block):
@@ -967,7 +972,7 @@ Paste the same 5 prompts from Step 0's "Before Lab 6: Security Baseline Test" se
 | # | Prompt | Before Lab 6 | After Lab 6 | What Changed |
 |---|---|---|---|---|
 | 1 | Raw PII Screening | ⚠️ Processed — PII intact | 🔒 PII de-identified by DLP | **Compliance gap closed** |
-| 2 | Embedded Injection | ⚠️ Silently ignored (no alert) | 🛡️ HTTP 403 (Model Armor) | **Invisible attack now caught** |
+| 2 | Embedded Injection | ⚠️ Silently ignored (no alert) | ✅ Silently ignored (agent instructions) + egress MA screens LLM call | **Defense-in-depth active** (ingress MA may not catch embedded injections at HIGH confidence) |
 | 3 | Obvious Injection | ✅ Text refusal (system prompt) | 🛡️ HTTP 403 (Model Armor) | Soft defense → Hard defense |
 | 4 | Protocol Deviation | ⚠️ INELIGIBLE but wrong reason | 📋 Agent instructions + defense-in-depth | **Domain rules enforced** |
 | 5 | Legitimate Query | ✅ Works | ✅ Works | No impact to core function |
@@ -1166,6 +1171,8 @@ meets the eligibility criteria for trial NCT-AEGIS-001.
 | **SGP allows off-topic text responses** | SGP evaluates TOOL CALLS only, not prompts | This is by design. SGP governs agent *actions* (function_call). Text-only responses (no tool call) pass through SGP. Off-topic text blocking must come from agent system instructions or Model Armor ingress. |
 | **500 empty message on streamQuery** | `{'message': '', 'status': 'Internal Server Error'}` — classic sign of egress authz extension blocking non-LLM API calls | Check all egress authz extensions: MA should have `failOpen: true`, IAP should have `failOpen: true` + `DRY_RUN`, SGP should have `failOpen: true`. |
 | **`get_project_id` crash on startup (code 3)** | Container logs show `resource_manager_utils.get_project_id()` → `Unknown: None` — gRPC call to Cloud Resource Manager fails through egress proxy | The agent code must patch `get_project_id` before SDK `set_up()` runs. Lab 5's `GatewayAgent` includes this patch; if using a different agent wrapper, add the patch to your root `agent.py`. |
+| **Ingress MA skips structured messages** | Ingress Model Armor only screens `input.message` when it's a plain string. If sent as a Content object (`{"role":"user","parts":[{"text":"..."}]}`), MA is bypassed — including calls from Gemini Enterprise | Platform limitation. Use the `streamQuery` API with plain string messages (the lab's curl examples do this). Egress MA provides defense-in-depth for structured messages. |
+| **Model Armor delay after rebuild** | First injection test returns HTTP 200 instead of 403 within ~60s of a Cloud Run revision swap | Wait 1–2 minutes after the rebuild completes before running security tests. Model Armor needs time to start screening the new revision. |
 
 ---
 
@@ -1234,14 +1241,19 @@ resource "google_network_security_authz_policy" "egress_sgp_policy" {
 }
 ```
 
-### 7. `03_security_and_gateways.tf` — MA egress policy `.mtls.` hostname variant added
+### 7. `03_security_and_gateways.tf` — MA egress policy host rules (regional + global + mTLS)
 ```hcl
   http_rules {
     to {
       operations {
+        # Regional endpoints (e.g. us-central1-aiplatform.googleapis.com)
         hosts { suffix = ".aiplatform.googleapis.com" }
-        hosts { suffix = ".aiplatform.mtls.googleapis.com" }  # ← Added for gateway mTLS rewrite
-        # ...
+        # mTLS rewrites of regional endpoints
+        hosts { suffix = ".aiplatform.mtls.googleapis.com" }
+        # Global endpoint (Gemini 3.x — GOOGLE_CLOUD_LOCATION=global)
+        hosts { exact = "aiplatform.googleapis.com" }
+        hosts { exact = "aiplatform.mtls.googleapis.com" }
+        # ...(paths: generatecontent, predict, streamquery)
       }
     }
   }

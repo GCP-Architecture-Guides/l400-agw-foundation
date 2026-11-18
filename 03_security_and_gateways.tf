@@ -36,7 +36,7 @@ resource "google_data_loss_prevention_inspect_template" "identification_template
   parent       = "projects/${var.project_id}/locations/${var.location}"
   template_id  = "identification-template"
   display_name = "Identification template"
-  description  = "Detects SSN, email, GCP credentials, credit card, medical and FDA/ICD codes."
+  description  = "Detects PII (name, SSN, DOB, address, phone, email, credit card), GCP credentials, and medical/FDA/ICD codes."
   depends_on   = [google_project_service.dlp]
 
   inspect_config {
@@ -46,6 +46,9 @@ resource "google_data_loss_prevention_inspect_template" "identification_template
     info_types { name = "US_SOCIAL_SECURITY_NUMBER" }
     info_types { name = "PHONE_NUMBER" }
     info_types { name = "EMAIL_ADDRESS" }
+    info_types { name = "PERSON_NAME" }
+    info_types { name = "STREET_ADDRESS" }
+    info_types { name = "DATE_OF_BIRTH" }
     info_types { name = "GCP_API_KEY" }
     info_types { name = "GCP_CREDENTIALS" }
     info_types { name = "CREDIT_CARD_NUMBER" }
@@ -71,6 +74,9 @@ resource "google_data_loss_prevention_deidentify_template" "deidentify_template"
         info_types { name = "US_SOCIAL_SECURITY_NUMBER" }
         info_types { name = "PHONE_NUMBER" }
         info_types { name = "EMAIL_ADDRESS" }
+        info_types { name = "PERSON_NAME" }
+        info_types { name = "STREET_ADDRESS" }
+        info_types { name = "DATE_OF_BIRTH" }
         info_types { name = "GCP_API_KEY" }
         info_types { name = "GCP_CREDENTIALS" }
         info_types { name = "CREDIT_CARD_NUMBER" }
@@ -243,6 +249,12 @@ resource "google_network_security_authz_policy" "egress_ma_policy" {
     to {
       # MA egress screens BOTH regional and global endpoint requests.
       #
+      # FIX (2026-11-18): The suffix rules alone never matched the GLOBAL
+      # endpoint "aiplatform.googleapis.com" (no prefix before "aiplatform"),
+      # which is where Gemini 3.x calls go (GOOGLE_CLOUD_LOCATION=global).
+      # Gateway logs showed 0 MA evaluations on 1,000+ egress requests.
+      # Added exact matches for the global host and its mTLS rewrite.
+      #
       # HISTORY: Originally excluded global endpoint ("aiplatform.googleapis.com")
       # because MA extension returned PERMISSION_DENIED. Root cause was the
       # Agent Gateway SA (gcp-sa-agentgateway) missing roles/modelarmor.calloutUser
@@ -257,10 +269,13 @@ resource "google_network_security_authz_policy" "egress_ma_policy" {
       #
       # See: skills/vertex-ai-global-endpoint-adk/SKILL.md §5 for original diagnosis.
       operations {
-        # Standard hostnames
+        # Regional endpoints (e.g. us-central1-aiplatform.googleapis.com)
         hosts { suffix = ".aiplatform.googleapis.com" }
-        # mTLS hostnames (Agent Gateway rewrites to these on egress)
+        # mTLS rewrites of regional endpoints
         hosts { suffix = ".aiplatform.mtls.googleapis.com" }
+        # Global endpoint (Gemini 3.x — GOOGLE_CLOUD_LOCATION=global)
+        hosts { exact = "aiplatform.googleapis.com" }
+        hosts { exact = "aiplatform.mtls.googleapis.com" }
         paths {
           contains    = "generatecontent"
           ignore_case = true
@@ -519,8 +534,8 @@ resource "google_network_services_authz_extension" "iap_extension_egress" {
   timeout = "1s"
 
   metadata = {
-    iapPolicyVersion    = "V1"
-    iamEnforcementMode  = "DRY_RUN" # Audit-only: logs identity checks, never blocks
+    iapPolicyVersion   = "V1"
+    iamEnforcementMode = "DRY_RUN" # Audit-only: logs identity checks, never blocks
   }
 
   depends_on = [google_project_service.iap]
@@ -586,7 +601,7 @@ resource "google_network_security_authz_policy" "egress_iap_policy" {
 
   depends_on = [
     google_network_services_authz_extension.iap_extension_egress,
-    google_network_security_authz_policy.egress_sgp_policy,  # serialize gateway tenant config updates
+    google_network_security_authz_policy.egress_sgp_policy, # serialize gateway tenant config updates
   ]
 }
 
@@ -609,23 +624,23 @@ resource "google_network_security_authz_policy" "egress_iap_policy" {
 # These grants were confirmed missing and applied 2026-08-13 (gap analysis).
 
 resource "google_project_iam_member" "gw_sa_ma_callout_user" {
-  project = var.project_id
-  role    = "roles/modelarmor.calloutUser"
-  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dep.iam.gserviceaccount.com"
+  project    = var.project_id
+  role       = "roles/modelarmor.calloutUser"
+  member     = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dep.iam.gserviceaccount.com"
   depends_on = [google_project_service.modelarmor]
 }
 
 resource "google_project_iam_member" "gw_sa_ma_user" {
-  project = var.project_id
-  role    = "roles/modelarmor.user"
-  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dep.iam.gserviceaccount.com"
+  project    = var.project_id
+  role       = "roles/modelarmor.user"
+  member     = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dep.iam.gserviceaccount.com"
   depends_on = [google_project_service.modelarmor]
 }
 
 resource "google_project_iam_member" "gw_sa_service_usage" {
-  project = var.project_id
-  role    = "roles/serviceusage.serviceUsageConsumer"
-  member  = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dep.iam.gserviceaccount.com"
+  project    = var.project_id
+  role       = "roles/serviceusage.serviceUsageConsumer"
+  member     = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-dep.iam.gserviceaccount.com"
   depends_on = [google_project_service.modelarmor]
 }
 

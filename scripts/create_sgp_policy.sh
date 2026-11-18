@@ -112,8 +112,10 @@ try:
         # Broader search: partial match
         matches = [a for a in agents if target in a.get('displayName','').lower()]
     if matches:
-        # Prefer agents with runtimeIdentity (auto-created by RE)
-        runtime_matches = [a for a in matches if a.get('runtimeIdentity')]
+        # Prefer agents with RuntimeIdentity (auto-created by RE)
+        runtime_matches = [a for a in matches
+                           if a.get('attributes', {}).get(
+                               'agentregistry.googleapis.com/system/RuntimeIdentity')]
         best = runtime_matches[0] if runtime_matches else matches[0]
         print(best['name'])
     else:
@@ -174,7 +176,7 @@ NLC_CONSTRAINT=""
 
 # Try terraform.tfvars heredoc-style value (<<-EOT ... EOT)
 NLC_FROM_TFVARS=$(python3 - <<'PYEOF'
-import re, sys
+import re, sys, textwrap
 
 try:
     content = open('terraform.tfvars').read()
@@ -184,7 +186,7 @@ try:
         content, re.MULTILINE | re.DOTALL
     )
     if m:
-        val = m.group(2).strip()
+        val = textwrap.dedent(m.group(2)).strip()
         if val:
             print(val)
             sys.exit(0)
