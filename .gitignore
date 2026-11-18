@@ -203,9 +203,16 @@ docs/
 skills/
 
 # -----------------------------------------------------------------------------
-# Assessment / grading infrastructure — Qwiklabs tooling, not for students
+# Assessment / grading infrastructure
 # -----------------------------------------------------------------------------
 .agents/
+# Un-gitignore the grader skill (needed for lab grading to work)
+!.agents/skills/
+!.agents/skills/verify-deployment/
+!.agents/skills/verify-deployment/**
+# Keep per-student state out of the repo
+.agents/skills/verify-deployment/.assessment_state.json
+.agents/skills/verify-deployment/scripts/__pycache__/
 
 # -----------------------------------------------------------------------------
 # Template directory — generic agent onboarding, not lab-specific
