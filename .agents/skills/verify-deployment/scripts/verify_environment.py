@@ -56,7 +56,7 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "goal_number": 1,
         "title": "Goal 1: Configure Agent-Gateway-Foundation Security Policies",
         "description": "Verify terraform.tfvars configuration for project identity, agent name, SGP constraint, egress allowlist, safety flags, and GCP API enablement.",
-        "max_points": 100,
+        "max_points": 10,
         "implemented": True,
         "steps": [
             {
@@ -64,14 +64,14 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
                 "step_number": 1,
                 "title": "Step 1: terraform.tfvars Configuration",
                 "pillar": "Pillar 1: terraform.tfvars Configuration",
-                "max_points": 60,
+                "max_points": 6,
             },
             {
                 "step_id": "step-2",
                 "step_number": 2,
                 "title": "Step 2: GCP API Enablement",
                 "pillar": "Pillar 2: GCP API Enablement",
-                "max_points": 40,
+                "max_points": 4,
             },
         ],
     },
@@ -80,7 +80,7 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "goal_number": 2,
         "title": "Goal 2: Deploy Agent Gateway Infrastructure via Terraform",
         "description": "Verify deployment of Agent Gateways, Model Armor, DLP templates, SGP/IAP extensions, IAM grants, and observability stack.",
-        "max_points": 100,
+        "max_points": 25,
         "implemented": True,
         "steps": [
             {
@@ -88,28 +88,28 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
                 "step_number": 1,
                 "title": "Step 1: Agent Gateways & Networking",
                 "pillar": "Pillar 1: Agent Gateways & Networking",
-                "max_points": 30,
+                "max_points": 8,
             },
             {
                 "step_id": "step-2",
                 "step_number": 2,
                 "title": "Step 2: Model Armor & DLP",
                 "pillar": "Pillar 2: Model Armor & DLP",
-                "max_points": 25,
+                "max_points": 6,
             },
             {
                 "step_id": "step-3",
                 "step_number": 3,
                 "title": "Step 3: SGP & IAP Extensions",
                 "pillar": "Pillar 3: SGP & IAP Extensions",
-                "max_points": 25,
+                "max_points": 6,
             },
             {
                 "step_id": "step-4",
                 "step_number": 4,
                 "title": "Step 4: IAM Grants & Observability",
                 "pillar": "Pillar 4: IAM Grants & Observability",
-                "max_points": 20,
+                "max_points": 5,
             },
         ],
     },
@@ -118,7 +118,7 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "goal_number": 3,
         "title": "Goal 3: Enable Agent Gateway on Existing Reasoning Engine",
         "description": "Verify RE prerequisite from Lab 5, agentGatewayConfig PATCH (ingress + egress bindings), and Model Armor quick check (prompt injection blocked, legitimate query passes).",
-        "max_points": 100,
+        "max_points": 15,
         "implemented": True,
         "steps": [
             {
@@ -126,21 +126,21 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
                 "step_number": 1,
                 "title": "Step 1: Lab 5 RE Prerequisite Verification",
                 "pillar": "Pillar 1: Lab 5 RE Prerequisite Verification",
-                "max_points": 20,
+                "max_points": 3,
             },
             {
                 "step_id": "step-2",
                 "step_number": 2,
                 "title": "Step 2: agentGatewayConfig PATCH",
                 "pillar": "Pillar 2: agentGatewayConfig PATCH",
-                "max_points": 40,
+                "max_points": 6,
             },
             {
                 "step_id": "step-3",
                 "step_number": 3,
                 "title": "Step 3: Model Armor Quick Check",
                 "pillar": "Pillar 3: Model Armor Quick Check",
-                "max_points": 40,
+                "max_points": 6,
             },
         ],
     },
@@ -149,7 +149,7 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "goal_number": 4,
         "title": "Goal 4: Register Egress Endpoints in Agent Registry",
         "description": "Verify Google API endpoints and Cloud Run sub-agent hostnames are registered in Agent Registry with deny-by-default posture.",
-        "max_points": 100,
+        "max_points": 15,
         "implemented": True,
         "steps": [
             {
@@ -157,14 +157,14 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
                 "step_number": 1,
                 "title": "Step 1: Google API Endpoints Registered",
                 "pillar": "Pillar 1: Google API Endpoints Registered",
-                "max_points": 40,
+                "max_points": 6,
             },
             {
                 "step_id": "step-2",
                 "step_number": 2,
                 "title": "Step 2: Cloud Run Sub-Agent Endpoints Registered",
                 "pillar": "Pillar 2: Cloud Run Sub-Agent Endpoints Registered",
-                "max_points": 60,
+                "max_points": 9,
             },
         ],
     },
@@ -173,7 +173,7 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "goal_number": 5,
         "title": "Goal 5: Register Semantic Governance Policy (SGP)",
         "description": "Verify SGP engine provisioning, PSC connectivity, NLC policy registration with domain constraints, and SGP domain quick check.",
-        "max_points": 100,
+        "max_points": 20,
         "implemented": True,
         "steps": [
             {
@@ -181,21 +181,21 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
                 "step_number": 1,
                 "title": "Step 1: SGP Engine Provisioned",
                 "pillar": "Pillar 1: SGP Engine Provisioned",
-                "max_points": 30,
+                "max_points": 6,
             },
             {
                 "step_id": "step-2",
                 "step_number": 2,
                 "title": "Step 2: NLC Policy Registration",
                 "pillar": "Pillar 2: NLC Policy Registration",
-                "max_points": 40,
+                "max_points": 8,
             },
             {
                 "step_id": "step-3",
                 "step_number": 3,
                 "title": "Step 3: SGP Domain Quick Check",
                 "pillar": "Pillar 3: SGP Domain Quick Check",
-                "max_points": 30,
+                "max_points": 6,
             },
         ],
     },
@@ -204,7 +204,7 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "goal_number": 6,
         "title": "Goal 6: Execute Red Team Security Gauntlet",
         "description": "Execute automated red team gauntlet, verify baseline comparison, and validate gateway telemetry in Cloud Logging and BigQuery.",
-        "max_points": 100,
+        "max_points": 15,
         "implemented": True,
         "steps": [
             {
@@ -212,21 +212,21 @@ GOAL_REGISTRY: Dict[str, Dict[str, Any]] = {
                 "step_number": 1,
                 "title": "Step 1: Automated Gauntlet Execution",
                 "pillar": "Pillar 1: Automated Gauntlet Execution",
-                "max_points": 60,
+                "max_points": 9,
             },
             {
                 "step_id": "step-2",
                 "step_number": 2,
                 "title": "Step 2: Manual Baseline Comparison",
                 "pillar": "Pillar 2: Manual Baseline Comparison",
-                "max_points": 25,
+                "max_points": 4,
             },
             {
                 "step_id": "step-3",
                 "step_number": 3,
                 "title": "Step 3: Gateway Telemetry Verification",
                 "pillar": "Pillar 3: Gateway Telemetry Verification",
-                "max_points": 15,
+                "max_points": 2,
             },
         ],
     },
@@ -2364,8 +2364,8 @@ def _load_assessment_state(repo_root: Path) -> Dict[str, Any]:
                     if summary.get("overall_status") == "PASS":
                         completed[gid] = {
                             "completed_at_utc": payload.get("metadata", {}).get("generated_at_utc", ""),
-                            "earned_points": summary.get("earned_points", 100),
-                            "max_points": summary.get("max_points", 100),
+                            "earned_points": summary.get("earned_points", 0),
+                            "max_points": summary.get("max_points", 0),
                             "report_path": str(rpt.name),
                         }
                         if not state.get("student_id"):
@@ -2548,7 +2548,7 @@ def main() -> int:
         comp_info = completed_goals[goal_id]
         print(
             f"NOTICE: Goal '{goal_id}' ({goal_def['title']}) has already been validated "
-            f"({comp_info.get('earned_points', 100)}/{comp_info.get('max_points', 100)} pts, report: {comp_info.get('report_path', '')}).\n"
+            f"({comp_info.get('earned_points', 0)}/{comp_info.get('max_points', 0)} pts, report: {comp_info.get('report_path', '')}).\n"
             f"Per grading policy, completed goals are only re-validated when explicitly requested (--force).\n"
             f"Next goal to evaluate: '{next_goal_id}' ({GOAL_REGISTRY[next_goal_id]['title']})."
         )
@@ -2689,7 +2689,7 @@ def main() -> int:
             "percentage": pct,
             "passed_checks": passed_checks,
             "total_checks": total_checks,
-            "overall_status": "PASS" if earned_points == max_points else "PARTIAL" if earned_points >= 70 else "FAIL",
+            "overall_status": "PASS" if earned_points == max_points else "PARTIAL" if pct >= 70.0 else "FAIL",
             "step_breakdown": step_breakdown,
             "pillar_breakdown": pillar_breakdown,
         },
