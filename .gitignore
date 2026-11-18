@@ -124,3 +124,101 @@ assessment_report_*.md
 # -----------------------------------------------------------------------------
 .gemini/
 
+# =============================================================================
+# LAB CLEANUP — Files kept locally for reference but excluded from published repo
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Food court demo agents — not used in Aegis TrialShield lab
+# (The lab only deploys agents/chat-agent/ as the clinical trial supervisor)
+# -----------------------------------------------------------------------------
+agents/burger-agent/
+agents/pizza-agent/
+agents/sushi-agent/
+agents/sushi-agent-a2a/
+agents/global-agent/
+agents/orchestrator/
+
+# -----------------------------------------------------------------------------
+# Unused libraries — food court backend & A2A shim
+# -----------------------------------------------------------------------------
+lib/food_court_backend.py
+lib/a2a_compat.py
+
+# -----------------------------------------------------------------------------
+# Orphaned agent file — telemetry is inlined in agent.py
+# -----------------------------------------------------------------------------
+agents/chat-agent/lens_llm_usage.py
+
+# -----------------------------------------------------------------------------
+# Food court deploy scripts — not used in lab
+# -----------------------------------------------------------------------------
+scripts/deploy_burger_agent.sh
+scripts/deploy_pizza_agent.sh
+scripts/deploy_sushi_a2a.sh
+scripts/deploy_global_agent.sh
+scripts/deploy_orchestrator.sh
+scripts/deploy_all.sh
+scripts/deploy_a2a_agent.py
+scripts/deploy_a2a_agents.sh
+scripts/deploy_a2a_specialist.py
+scripts/redeploy_orchestrator.py
+scripts/e2e_test.py
+scripts/patch_a2a_classification.py
+
+# -----------------------------------------------------------------------------
+# Unused utility scripts — dev tooling, not lab tasks
+# -----------------------------------------------------------------------------
+scripts/publish_sdk.sh
+scripts/build_wheel.py
+scripts/register_gemini_enterprise.sh
+scripts/setup_vpc_sc_ingress.sh
+scripts/grant_agent_iam_roles.sh
+scripts/generate_agent_config.sh
+scripts/check_agent_health.sh
+
+# -----------------------------------------------------------------------------
+# Root automation scripts — food court multi-agent pipelines
+# -----------------------------------------------------------------------------
+deploy_all.sh
+destroy_all.sh
+run_e2e.sh
+
+# -----------------------------------------------------------------------------
+# Non-lab documentation — internal/foundation docs, not lab instructions
+# (README.md and KNOWN_ISSUES.md are kept for the lab)
+# -----------------------------------------------------------------------------
+ARCHITECTURE.md
+CHANGELOG.md
+CONSUMING.md
+CONTRIBUTING.md
+FOUNDATION_README.md
+FUTURE_ENHANCEMENTS.md
+docs/
+
+# -----------------------------------------------------------------------------
+# Antigravity skills — developer AI-assistant config, not lab artifacts
+# -----------------------------------------------------------------------------
+skills/
+
+# -----------------------------------------------------------------------------
+# Assessment / grading infrastructure — Qwiklabs tooling, not for students
+# -----------------------------------------------------------------------------
+.agents/
+
+# -----------------------------------------------------------------------------
+# Template directory — generic agent onboarding, not lab-specific
+# -----------------------------------------------------------------------------
+template/
+
+# -----------------------------------------------------------------------------
+# Test agent — food court guardrail tests, lab uses red_team_gauntlet.sh
+# -----------------------------------------------------------------------------
+test-agent/
+
+# -----------------------------------------------------------------------------
+# Lab 1 (Lab 5 prerequisite) — reference only, not needed in published repo
+# The .venv/ inside is especially large (100s of MB)
+# -----------------------------------------------------------------------------
+lab1/
+

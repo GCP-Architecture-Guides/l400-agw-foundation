@@ -159,29 +159,23 @@ resource "google_network_services_agent_gateway" "egress_gateway" {
     "//agentregistry.googleapis.com/projects/${var.project_id}/locations/${var.location}"
   ]
 
-  # network_config — enables DNS peering so the egress gateway can resolve
-  # sgp.internal.gemini-corp → PSC endpoint IP via the project's private DNS zone.
+  # REMOVED: network_config with PSC networkAttachment.
+  # Root cause: aiohttp (used by ADK/Vertex SDK) sends IP-literal CONNECT
+  # requests through the PSC tunnel. SWP URL-map rules can't match IP-literal
+  # hostnames → all requests hit the default_denied rule → empty responses.
+  # Egress content screening works via CONTENT_AUTHZ policies without
+  # network-level capture; removing network_config does NOT disable governance.
   #
-  # PREREQUISITE: The gateway SA (gcp-sa-agentgateway) must have:
-  #   - roles/compute.networkViewer
-  #   - roles/compute.networkUser
-  #   - roles/dns.reader
-  # These are granted in 03_security_and_gateways.tf. Without them, the API
-  # may reject network_config validation or the gateway can't resolve DNS.
-  #
-  # NOTE: If Terraform validation fails on your provider version, comment this
-  # block out and apply the network_config manually via REST API:
-  #   gcloud alpha network-services gateways update aegis-egress-gateway ...
-  network_config {
-    egress {
-      network_attachment = google_compute_network_attachment.psc_network_attachment.id
-    }
-    dns_peering_config {
-      target_project = var.project_id
-      target_network = google_compute_network.vpc.id
-      domains        = ["sgp.internal.gemini-corp."]
-    }
-  }
+  # network_config {
+  #   egress {
+  #     network_attachment = google_compute_network_attachment.psc_network_attachment.id
+  #   }
+  #   dns_peering_config {
+  #     target_project = var.project_id
+  #     target_network = google_compute_network.vpc.id
+  #     domains        = ["sgp.internal.gemini-corp."]
+  #   }
+  # }
 
   depends_on = [
     google_project_service.networkservices,

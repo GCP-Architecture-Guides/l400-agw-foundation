@@ -138,7 +138,11 @@ echo "Writing agents/chat-agent/.env with project env vars..."
 cat > agents/chat-agent/.env << ENVEOF
 GCP_PROJECT_ID=${PROJECT_ID}
 GOOGLE_CLOUD_PROJECT=${PROJECT_ID}
-GOOGLE_CLOUD_LOCATION=us-central1
+# Gemini 3.x models (gemini-3.5-flash, etc.) are ONLY available on the global
+# Vertex AI endpoint (aiplatform.googleapis.com), NOT regional endpoints.
+# Setting this to 'global' routes model inference to the global endpoint.
+# See: vertex-ai-global-endpoint-adk skill for details.
+GOOGLE_CLOUD_LOCATION=global
 AGENT_GATEWAY_INGRESS=projects/${PROJECT_ID}/locations/us-central1/agentGateways/aegis-ingress-gateway
 AGENT_GATEWAY_EGRESS=projects/${PROJECT_ID}/locations/us-central1/agentGateways/aegis-egress-gateway
 # OTEL mTLS FIX (Layer 1): RE containers have mTLS certs — prevents SSL context corruption.
