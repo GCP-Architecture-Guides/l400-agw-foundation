@@ -1,0 +1,77 @@
+{
+  "discoveredAt": "2026-11-18T16:37:53.165885Z",
+  "projectId": "elevate-sec-expert-lab-16",
+  "region": "us-central1",
+  "reasoningEngine": {
+    "displayName": "trial_matching_supervisor",
+    "id": "",
+    "fullName": "",
+    "state": "",
+    "createTime": "",
+    "found": false
+  },
+  "cloudRunServices": [
+    {
+      "name": "genomic-biomarker",
+      "url": "",
+      "serviceAccount": "",
+      "status": "NOT FOUND",
+      "healthy": "MISSING"
+    },
+    {
+      "name": "pharmacovigilance",
+      "url": "",
+      "serviceAccount": "",
+      "status": "NOT FOUND",
+      "healthy": "MISSING"
+    },
+    {
+      "name": "clinical-cohort",
+      "url": "",
+      "serviceAccount": "",
+      "status": "NOT FOUND",
+      "healthy": "MISSING"
+    },
+    {
+      "name": "trial-synthesizer",
+      "url": "",
+      "serviceAccount": "",
+      "status": "NOT FOUND",
+      "healthy": "MISSING"
+    }
+  ],
+  "serviceAccounts": [
+    {
+      "name": "sa-matching-supervisor",
+      "email": "",
+      "found": true
+    },
+    {
+      "name": "sa-genomic-biomarker",
+      "email": "",
+      "found": true
+    },
+    {
+      "name": "sa-pharmacovigilance",
+      "email": "",
+      "found": true
+    },
+    {
+      "name": "sa-clinical-cohort",
+      "email": "",
+      "found": true
+    },
+    {
+      "name": "sa-trial-synthesizer",
+      "email": "",
+      "found": true
+    },
+    {
+      "name": "sa-legacy-god-mode",
+      "email": "",
+      "found": true
+    }
+  ],
+  "healthy": false,
+  "errorCount": 13
+}

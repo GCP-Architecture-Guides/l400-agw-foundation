@@ -326,9 +326,10 @@ print(json.dumps({
 done
 SA_JSON_ARRAY+="]"
 
-# Write full JSON
-python3 -c "
-import json, datetime
+# Write full JSON — pass pre-built JSON arrays via env vars to avoid
+# pasting JSON true/false into Python source (NameError).
+SVC_JSON="$SVC_JSON_ARRAY" SA_JSON="$SA_JSON_ARRAY" python3 -c "
+import json, datetime, os
 data = {
   'discoveredAt': datetime.datetime.utcnow().isoformat() + 'Z',
   'projectId': '${PROJECT_ID}',
@@ -341,8 +342,8 @@ data = {
     'createTime': '${RE_CREATE_TIME}',
     'found': $([ -n "$RE_ID" ] && echo 'True' || echo 'False')
   },
-  'cloudRunServices': ${SVC_JSON_ARRAY},
-  'serviceAccounts': ${SA_JSON_ARRAY},
+  'cloudRunServices': json.loads(os.environ.get('SVC_JSON', '[]')),
+  'serviceAccounts': json.loads(os.environ.get('SA_JSON', '[]')),
   'healthy': $([ "$ERRORS" -eq 0 ] && echo 'True' || echo 'False'),
   'errorCount': ${ERRORS}
 }

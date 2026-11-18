@@ -362,6 +362,11 @@ resource "google_network_security_authz_policy" "egress_sgp_policy" {
       }
     }
   }
+
+  # Serialize egress policy creates — all three target the same gateway and
+  # update its tenant config. Concurrent creates race and produce Error code 10
+  # (aborted). Chain: ma_policy → sgp_policy → iap_policy.
+  depends_on = [google_network_security_authz_policy.egress_ma_policy]
 }
 
 # ==============================================================================
@@ -575,7 +580,10 @@ resource "google_network_security_authz_policy" "egress_iap_policy" {
     }
   }
 
-  depends_on = [google_network_services_authz_extension.iap_extension_egress]
+  depends_on = [
+    google_network_services_authz_extension.iap_extension_egress,
+    google_network_security_authz_policy.egress_sgp_policy,  # serialize gateway tenant config updates
+  ]
 }
 
 # NOTE: roles/networkservices.agentGatewayUser removed — role does not exist

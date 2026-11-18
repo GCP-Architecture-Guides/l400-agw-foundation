@@ -30,4 +30,10 @@ locals {
 resource "google_monitoring_dashboard" "agent_observability" {
   project        = var.project_id
   dashboard_json = local.dashboard_json_raw
+
+  # API normalizes dashboard_json (strips defaults, adds etag/name),
+  # causing perpetual drift on every plan. Safe to ignore.
+  lifecycle {
+    ignore_changes = [dashboard_json]
+  }
 }

@@ -108,6 +108,13 @@ Lab 5 must be completed **before** starting Lab 6. You need:
   gcloud components install alpha beta
   ```
 
+> [!TIP]
+> If your `gcloud` account keeps reverting (e.g., multiple IDE sessions sharing the same config), pin it with environment variables before running any commands:
+> ```bash
+> export CLOUDSDK_CORE_ACCOUNT=your-account@domain.com
+> export CLOUDSDK_CORE_PROJECT=your-project-id
+> ```
+
 ### Source Repository
 
 All lab code is available at:

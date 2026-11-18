@@ -76,4 +76,10 @@ resource "google_monitoring_monitored_project" "member" {
 resource "google_monitoring_dashboard" "org_agentic_observability" {
   project        = var.metrics_scope_project_id
   dashboard_json = local.dashboard_json
+
+  # API normalizes dashboard_json (strips defaults, adds etag/name),
+  # causing perpetual drift on every plan. Safe to ignore.
+  lifecycle {
+    ignore_changes = [dashboard_json]
+  }
 }

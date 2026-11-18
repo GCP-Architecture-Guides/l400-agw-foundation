@@ -1029,3 +1029,52 @@ gcloud beta service-extensions authz-extensions import PREFIX-iap-extension-egre
   --source=/tmp/iap-dryrun.yaml --location=REGION --project=PROJECT
 ```
 
+
+---
+
+## Issue 8: Egress Authz Policy Race Condition (Terraform Apply)
+
+**Status:** FIXED (depends_on chain added)
+
+### Symptom
+
+`terraform apply` creates 100/102 resources, then fails with:
+
+```
+Error: Error waiting to create AuthzPolicy: Error waiting for Creating AuthzPolicy:
+Error code 10, message: Failed to update tenant configuration for AgentGateway:
+generic::aborted: The resource is being created and therefore can not be updated yet
+```
+
+Typically 2 of 3 egress authz policies fail (e.g., `egress_ma_policy` and `egress_sgp_policy`).
+
+### Root Cause
+
+All 3 egress authz policies (`egress_ma_policy`, `egress_sgp_policy`, `egress_iap_policy`) target
+the same `egress-gateway` and each update its tenant configuration. With Terraform's default
+parallelism (10), all 3 creates fire concurrently. The gateway rejects the two that arrive while
+the first update is in-flight (Error code 10: aborted).
+
+### Fix
+
+A `depends_on` chain serializes the creates:
+
+```
+egress_ma_policy → egress_sgp_policy → egress_iap_policy
+```
+
+This is now implemented in `03_security_and_gateways.tf`.
+
+### Fallback
+
+If the race still occurs (e.g., with custom Terraform wrappers that reset parallelism):
+
+```bash
+# Re-plan after the failed apply completes
+terraform plan -out=retry.tfplan
+
+# Apply with parallelism=1 to serialize all operations
+terraform apply -parallelism=1 retry.tfplan
+```
+
+The failed policies will not be in state (they were never created), so no `terraform import` is needed.

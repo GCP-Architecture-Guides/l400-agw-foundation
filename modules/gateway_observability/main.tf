@@ -36,5 +36,11 @@ resource "google_monitoring_dashboard" "agent_gateway_observability" {
   project        = var.project_id
   dashboard_json = local.dashboard_json
 
+  # API normalizes dashboard_json (strips defaults, adds etag/name),
+  # causing perpetual drift on every plan. Safe to ignore.
+  lifecycle {
+    ignore_changes = [dashboard_json]
+  }
+
   depends_on = [google_logging_project_bucket_config.default_analytics]
 }
