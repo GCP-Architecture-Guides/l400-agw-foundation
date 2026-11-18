@@ -502,29 +502,10 @@ graph LR
 
 ### Prerequisites
 
-Before patching, verify your Lab 5 RE has `identityType=AGENT_IDENTITY`:
-
 > [!NOTE]
-> If `gcloud ai reasoning-engines` returns "Invalid choice: 'reasoning-engines'", use `gcloud beta ai reasoning-engines` instead. The `reasoning-engines` resource may require `beta` or `alpha` depending on your gcloud SDK version.
-
-```bash
-# Get your Lab 5 RE ID
-RE_ID=$(gcloud ai reasoning-engines list \
-  --location=us-central1 \
-  --project=[YOUR_PROJECT_ID] \
-  --format="value(name)" \
-  --filter="displayName=trial_matching_supervisor" | grep -o '[0-9]*$')
-
-echo "RE ID: $RE_ID"
-
-# Verify identityType is set
-TOKEN=$(gcloud auth print-access-token)
-curl -s -H "Authorization: Bearer $TOKEN" \
-  "https://us-central1-aiplatform.googleapis.com/v1/projects/[YOUR_PROJECT_ID]/locations/us-central1/reasoningEngines/$RE_ID" \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); print('identityType:', d.get('spec',{}).get('deploymentSpec',{}).get('identityType', d.get('spec',{}).get('identityType','NOT SET')))"
-```
-
-**Expected:** `identityType: AGENT_IDENTITY` — if this shows `NOT SET`, the Lab 5 RE was deployed without agent identity and you must redeploy it in Lab 5 first.
+> Your Lab 5 RE must have `identityType=AGENT_IDENTITY` set. If it shows `NOT SET`, redeploy the agent in Lab 5 first. The Antigravity Prompt below will verify this automatically.
+>
+> If `gcloud ai reasoning-engines` returns "Invalid choice: 'reasoning-engines'", use `gcloud beta ai reasoning-engines` instead.
 
 ### Antigravity Prompt
 
