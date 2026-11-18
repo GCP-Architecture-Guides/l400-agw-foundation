@@ -755,7 +755,7 @@ def run_goal_2_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     gcloud_bin = shutil.which("gcloud") or "gcloud"
     rc_ig, out_ig, _ = _run_cmd([
         gcloud_bin, "network-services", "agent-gateways", "describe",
-        f"{prefix}-ingress-gateway", "--location", REGION, "--format", "json",
+        f"{prefix}-ingress-gateway", "--location", REGION, "--project", project_id, "--format", "json",
     ], timeout=30)
     ig_data = {}
     if rc_ig == 0:
@@ -783,7 +783,7 @@ def run_goal_2_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # 1.2 Egress Agent Gateway (10 pts)
     rc_eg, out_eg, _ = _run_cmd([
         gcloud_bin, "network-services", "agent-gateways", "describe",
-        f"{prefix}-egress-gateway", "--location", REGION, "--format", "json",
+        f"{prefix}-egress-gateway", "--location", REGION, "--project", project_id, "--format", "json",
     ], timeout=30)
     eg_data = {}
     if rc_eg == 0:
@@ -809,7 +809,7 @@ def run_goal_2_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     ))
 
     # 1.3 VPC & PSC Infrastructure (10 pts)
-    rc_vpc, out_vpc, _ = _run_cmd([gcloud_bin, "compute", "networks", "list", "--format", "json"], timeout=20)
+    rc_vpc, out_vpc, _ = _run_cmd([gcloud_bin, "compute", "networks", "list", "--project", project_id, "--format", "json"], timeout=20)
     vpcs = []
     if rc_vpc == 0:
         try:
@@ -819,7 +819,7 @@ def run_goal_2_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
 
     rc_sub, out_sub, _ = _run_cmd([
         gcloud_bin, "compute", "networks", "subnets", "list",
-        "--format", "json", "--filter", f"region:{REGION}",
+        "--project", project_id, "--format", "json", "--filter", f"region:{REGION}",
     ], timeout=20)
     subnets = []
     if rc_sub == 0:
@@ -849,7 +849,7 @@ def run_goal_2_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # 2.1 Model Armor Template (10 pts)
     rc_ma, out_ma, _ = _run_cmd([
         gcloud_bin, "alpha", "model-armor", "templates", "list",
-        "--location", REGION, "--format", "json",
+        "--location", REGION, "--project", project_id, "--format", "json",
     ], timeout=30)
     ma_templates = []
     if rc_ma == 0:
@@ -901,7 +901,7 @@ def run_goal_2_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # google_network_services_authz_extension resources. List authz extensions instead (GA command).
     rc_ext, out_ext, _ = _run_cmd([
         gcloud_bin, "service-extensions", "authz-extensions", "list",
-        "--location", REGION, "--format", "json",
+        "--location", REGION, "--project", project_id, "--format", "json",
     ], timeout=30)
     extensions = []
     if rc_ext == 0:
@@ -951,7 +951,7 @@ def run_goal_2_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # 3.2 SGP PSC Connectivity (8 pts)
     rc_fwd, out_fwd, _ = _run_cmd([
         gcloud_bin, "compute", "forwarding-rules", "list",
-        "--format", "json", "--filter", f"region:{REGION}",
+        "--project", project_id, "--format", "json", "--filter", f"region:{REGION}",
     ], timeout=20)
     fwd_rules = []
     if rc_fwd == 0:
@@ -962,7 +962,7 @@ def run_goal_2_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     psc_rules = [r for r in fwd_rules if "psc" in str(r.get("name", "")).lower() or r.get("pscConnectionId")]
 
     rc_dns, out_dns, _ = _run_cmd([
-        gcloud_bin, "dns", "managed-zones", "list", "--format", "json",
+        gcloud_bin, "dns", "managed-zones", "list", "--project", project_id, "--format", "json",
     ], timeout=20)
     dns_zones = []
     if rc_dns == 0:
@@ -998,7 +998,7 @@ def run_goal_2_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
         }
         rc_pol, out_pol, _ = _run_cmd([
             gcloud_bin, "network-security", "authz-policies", "list",
-            "--location", REGION, "--format", "json",
+            "--location", REGION, "--project", project_id, "--format", "json",
         ], timeout=30)
         authz_policies = []
         if rc_pol == 0:
@@ -1107,7 +1107,7 @@ def run_goal_2_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
 
     # Check logging sink
     rc_sink, out_sink, _ = _run_cmd([
-        gcloud_bin, "logging", "sinks", "list", "--format", "json",
+        gcloud_bin, "logging", "sinks", "list", "--project", project_id, "--format", "json",
     ], timeout=20)
     sinks = []
     if rc_sink == 0:
@@ -1348,7 +1348,7 @@ def run_goal_4_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # List Agent Registry services
     rc_ar, out_ar, _ = _run_cmd([
         gcloud_bin, "alpha", "agent-registry", "services", "list",
-        "--location", REGION, "--format", "json",
+        "--location", REGION, "--project", project_id, "--format", "json",
     ], timeout=30)
     ar_services = []
     if rc_ar == 0:
@@ -1410,7 +1410,7 @@ def run_goal_4_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # 2.1 Cloud Run Services Discovered (15 pts)
     rc_cr, out_cr, _ = _run_cmd([
         gcloud_bin, "run", "services", "list",
-        "--region", REGION, "--format", "json",
+        "--region", REGION, "--project", project_id, "--format", "json",
     ], timeout=30)
     cr_services = []
     if rc_cr == 0:
@@ -1485,7 +1485,7 @@ def run_goal_4_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     prefix = tfvars.get("prefix", "aegis")
     rc_eg, out_eg, _ = _run_cmd([
         gcloud_bin, "network-services", "agent-gateways", "describe",
-        f"{prefix}-egress-gateway", "--location", REGION, "--format", "json",
+        f"{prefix}-egress-gateway", "--location", REGION, "--project", project_id, "--format", "json",
     ], timeout=30)
     eg_data = {}
     if rc_eg == 0:
@@ -1552,7 +1552,7 @@ def run_goal_5_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # 1.2 PSC Connectivity Verified (15 pts)
     rc_fwd, out_fwd, _ = _run_cmd([
         gcloud_bin, "compute", "forwarding-rules", "list",
-        "--format", "json", "--filter", f"region:{REGION}",
+        "--project", project_id, "--format", "json", "--filter", f"region:{REGION}",
     ], timeout=20)
     fwd_rules = []
     if rc_fwd == 0:
@@ -1569,6 +1569,7 @@ def run_goal_5_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # Check DNS
     rc_dns, out_dns, _ = _run_cmd([
         gcloud_bin, "dns", "record-sets", "list",
+        "--project", project_id,
         "--zone", f"{prefix}-sgp-dns-zone",
         "--format", "json",
     ], timeout=20)
@@ -1598,7 +1599,7 @@ def run_goal_5_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # 2.1 SGP Policy Exists (20 pts)
     rc_sgpp, out_sgpp, _ = _run_cmd([
         gcloud_bin, "beta", "ai", "semantic-governance-policies", "list",
-        "--location", REGION, "--format", "json",
+        "--location", REGION, "--project", project_id, "--format", "json",
     ], timeout=30)
     sgp_policies = []
     if rc_sgpp == 0:
@@ -1707,7 +1708,8 @@ def run_goal_5_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     # 3.2 SGP Telemetry in Gateway Logs (15 pts)
     rc_log, out_log, _ = _run_cmd([
         gcloud_bin, "logging", "read",
-        'resource.type="networkservices.googleapis.com/Gateway" AND '
+        '(resource.type="networkservices.googleapis.com/Gateway" OR '
+        'resource.type="networkservices.googleapis.com/AgentGateway") AND '
         'jsonPayload.serviceExtensionInfo.resource:"sgp-extension"',
         "--limit", "5", "--format", "json", "--freshness", "1h",
         "--project", project_id,
@@ -1718,18 +1720,25 @@ def run_goal_5_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
             log_entries = json.loads(out_log)
         except Exception:
             pass
-    has_sgp_logs = len(log_entries) > 0
+    sgp_ok_entries = [
+        e for e in log_entries
+        if any(
+            ext.get("grpcStatus") == "OK" and "sgp" in str(ext.get("resource", "")).lower()
+            for ext in e.get("jsonPayload", {}).get("serviceExtensionInfo", [])
+        )
+    ]
+    has_sgp_logs = len(sgp_ok_entries) > 0
     check_32 = has_sgp_logs
     checks.append(make_check(
         check_id="3.2", pillar=p3,
         title="SGP Telemetry in Gateway Logs",
         passed=check_32, max_points=15, earned_points=15 if check_32 else 0,
         summary=(
-            f"Found {len(log_entries)} Agent Gateway log entries with SGP extension evaluations."
+            f"Found {len(sgp_ok_entries)} Gateway log entries with SGP extension evaluations (grpcStatus=OK)."
             if check_32
-            else f"No Agent Gateway log entries found (resource.type=networkservices.googleapis.com/Gateway, filter: sgp-extension)."
+            else f"No Agent Gateway log entries found (resource.type=networkservices.googleapis.com/Gateway, filter: sgp-extension, grpcStatus=OK)."
         ),
-        evidence={"log_entry_count": len(log_entries), "has_sgp_logs": has_sgp_logs},
+        evidence={"log_entry_count": len(log_entries), "sgp_ok_entry_count": len(sgp_ok_entries), "has_sgp_logs": has_sgp_logs},
     ))
 
     return checks
@@ -1951,7 +1960,8 @@ def run_goal_6_checks(project_id: str, auth_headers: Dict[str, str], repo_root: 
     rc_log, out_log, _ = _run_cmd([
         gcloud_bin, "logging", "read",
         'resource.type="modelarmor.googleapis.com/SanitizeOperation" AND '
-        'jsonPayload.sanitizationResult.filterMatchState="MATCH_FOUND"',
+        'labels."modelarmor.googleapis.com/client_name"="AGENT_GATEWAY" AND '
+        'jsonPayload.sanitizationResult.sanitizationVerdict="MODEL_ARMOR_SANITIZATION_VERDICT_BLOCK"',
         "--limit", "5", "--format", "json", "--freshness", "2h",
         "--project", project_id,
     ], timeout=30)

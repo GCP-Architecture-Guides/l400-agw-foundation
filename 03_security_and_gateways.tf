@@ -210,6 +210,10 @@ resource "google_network_security_authz_policy" "ingress_ma_policy" {
       resources = [google_network_services_authz_extension.ma_extension_ingress.id]
     }
   }
+
+  # Serialize ingress policy creates — both target ingress_gateway and update
+  # its tenant config (concurrent creates race with generic::already_exists).
+  depends_on = [google_network_security_authz_policy.ingress_iap_policy]
 }
 
 
