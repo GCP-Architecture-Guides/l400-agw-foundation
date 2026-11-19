@@ -1182,14 +1182,14 @@ meets the eligibility criteria for trial NCT-AEGIS-001.
 | **PATCH returns 400 "Cannot find field"** | Using wrong API version or field path | Use `v1` endpoint (NOT `v1beta1`). Field path is `spec.deploymentSpec.agentGatewayConfig` (NOT top-level). |
 | **`identityType` not set on Lab 5 RE** | `identityType: NOT SET` when checking RE | Lab 5 must deploy with `identityType=AGENT_IDENTITY`. Cannot be patched retroactively. Redeploy the RE in Lab 5. |
 | **Session API "Failed to create session" (500)** | SGP egress extension with `fail_open=false` blocks session API calls (SGP can't parse non-LLM requests) | Already fixed: `03_security_and_gateways.tf` sets SGP extension `fail_open = true`. If you see this after `terraform apply`, verify the SGP extension has `failOpen: true`. |
-| **MA egress breaks session API** | Model Armor egress `http_rules` with `paths { contains = "sessions" }` intercept session management calls | Already fixed: "sessions" and "events" paths removed from `03_security_and_gateways.tf` (line ~261). |
+| **MA egress never invoked** | CONTENT_AUTHZ `httpRules` with path conditions (generatecontent, predict) never match because egress CONNECT tunnels don't expose HTTP paths | Already fixed: `httpRules` removed from both MA and SGP egress policies. Extensions now match all egress traffic. |
 | **SGP "Agent not configured with valid RuntimeIdentity"** | RE deployed without `identityType=AGENT_IDENTITY` | Redeploy RE in Lab 5 with `identityType=AGENT_IDENTITY` set at creation time. |
 | **Agent Registry name mismatch** | SGP script reads `agent_name` from tfvars — must match RE displayName | Ensure Lab 5 RE `displayName` matches `agent_name` in `terraform.tfvars` (both should be `trial_matching_supervisor`). |
 | **`iamconnectors.googleapis.com` Permission Denied** | API not available in all projects | Already commented out in `01_apis.tf` (lines 96-99). |
 | **Egress Gateway `network_config` validation failure** | `dns_peering_config` block fails API validation | Commented out in `02_network.tf` (lines 169-178) due to aiohttp IP-literal CONNECT issue. See Code Changes §9. |
 | **Terraform `terraform init` fails with stale state** | Module paths changed after restructuring | Run `terraform init -reconfigure`. |
-| **SGP egress blocks ALL outbound traffic** | SGP extension `fail_open=false` (default) blocks session API, A2A calls, and other non-LLM requests that SGP can't parse semantically | Set SGP extension `fail_open = true` in `03_security_and_gateways.tf`. SGP httpRules scope evaluation to LLM content paths only; non-matching traffic bypasses SGP. |
-| **SGP policy shows "no custom policies matched"** | SGP `httpRules` missing `.mtls.` hostname variants | Agent Gateway TLS-intercepts egress and rewrites hostnames to `*.mtls.googleapis.com`. Add both `.aiplatform.googleapis.com` AND `.aiplatform.mtls.googleapis.com` suffix variants to SGP/MA egress httpRules. |
+| **SGP egress blocks ALL outbound traffic** | SGP extension `fail_open=false` (default) blocks session API, A2A calls, and other non-LLM requests that SGP can't parse semantically | Set SGP extension `fail_open = true` in `03_security_and_gateways.tf`. `httpRules` removed — SGP handles non-LLM traffic safely via fail-open. |
+| **Egress policy shows "no custom policies matched"** | CONTENT_AUTHZ `httpRules` with path conditions can't match CONNECT tunnels (no visible path) | Already fixed: `httpRules` removed from both MA and SGP egress policies. |
 | **SGP extension failedOpen=true** | Gateway can't reach SGP engine via PSC because `network_config` is commented out (see §9) | Known limitation: aiohttp sends IP-literal CONNECT requests that SWP can't match. SGP infra is provisioned and policy exists, but wire-level enforcement requires a platform fix. Off-topic blocking uses agent system instructions + Model Armor. |
 | **SGP allows off-topic text responses** | SGP evaluates TOOL CALLS only, not prompts | This is by design. SGP governs agent *actions* (function_call). Text-only responses (no tool call) pass through SGP. Off-topic text blocking must come from agent system instructions or Model Armor ingress. |
 | **500 empty message on streamQuery** | `{'message': '', 'status': 'Internal Server Error'}` — classic sign of egress authz extension blocking non-LLM API calls | Check all egress authz extensions: MA should have `failOpen: true`, IAP should have `failOpen: true` + `DRY_RUN`, SGP should have `failOpen: true`. |
@@ -1264,22 +1264,22 @@ resource "google_network_security_authz_policy" "egress_sgp_policy" {
 }
 ```
 
-### 7. `03_security_and_gateways.tf` — MA egress policy host rules (regional + global + mTLS)
+### 7. `03_security_and_gateways.tf` — MA & SGP egress policies: `httpRules` removed
 ```hcl
-  http_rules {
-    to {
-      operations {
-        # Regional endpoints (e.g. us-central1-aiplatform.googleapis.com)
-        hosts { suffix = ".aiplatform.googleapis.com" }
-        # mTLS rewrites of regional endpoints
-        hosts { suffix = ".aiplatform.mtls.googleapis.com" }
-        # Global endpoint (Gemini 3.x — GOOGLE_CLOUD_LOCATION=global)
-        hosts { exact = "aiplatform.googleapis.com" }
-        hosts { exact = "aiplatform.mtls.googleapis.com" }
-        # ...(paths: generatecontent, predict, streamquery)
-      }
-    }
-  }
+# CONTENT_AUTHZ httpRules REMOVED from both MA and SGP egress policies.
+#
+# ROOT CAUSE: Egress requests travel through CONNECT tunnels where the HTTP
+# path is not visible to the gateway's authz policy matcher. When httpRules
+# specified both host AND path conditions (e.g. contains="generatecontent"),
+# the path condition could never match → the entire rule failed → the MA
+# extension was NEVER invoked on ANY egress request (confirmed via gateway
+# logs: 0 MA evaluations across 1,000+ requests).
+#
+# Without httpRules, the CONTENT_AUTHZ policy matches ALL egress traffic
+# and routes it to the extension for screening. This is safe because:
+#   1. MA extension has fail_open = true (won't block on parsing errors)
+#   2. MA only screens request bodies that look like LLM prompts
+#   3. SGP extension has fail_open = true for the same reason
 ```
 
 ### 8. `03_security_and_gateways.tf` — Gateway SA IAM for SGP connectivity
@@ -1312,7 +1312,7 @@ resource "google_project_iam_member" "gw_sa_agentgateway_dns_reader"     { ... }
 ```
 
 > [!IMPORTANT]
-> **Why `.mtls.` hostnames matter:** The Agent Gateway TLS-intercepts all egress traffic and rewrites hostnames to `*.mtls.googleapis.com` (e.g., `us-central1-aiplatform.googleapis.com` → `us-central1-aiplatform.mtls.googleapis.com`). If your `httpRules` only match `.aiplatform.googleapis.com`, the policy will never match rewritten traffic and will show `"allowed_as_no_custom_policies_matched_request"` in gateway logs — meaning the security extension is deployed but not actually screening anything.
+> **Why `httpRules` were removed from egress policies:** Egress traffic flows through CONNECT tunnels where the HTTP path (e.g., `/generateContent`) is not visible to the CONTENT_AUTHZ policy matcher. With `httpRules` containing path conditions, the policy **never** matched any request — the MA/SGP extensions were deployed but never invoked. Removing `httpRules` lets the policy match all egress traffic; the extensions themselves determine what to screen based on their template configurations.
 
 > [!NOTE]
 > **SGP = tool-call governance, not prompt filtering.** SGP evaluates agent *actions* (function calls) against the NLC constraint on egress. For text-only responses with no tool call, SGP has nothing to evaluate. Off-topic prompt blocking is handled by Model Armor on ingress and/or agent system instructions. SGP and agent instructions together provide defense-in-depth: instructions handle text refusals, SGP prevents unauthorized tool invocations.

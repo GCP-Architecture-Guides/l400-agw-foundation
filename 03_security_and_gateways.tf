@@ -241,57 +241,29 @@ resource "google_network_security_authz_policy" "egress_ma_policy" {
     }
   }
 
-  http_rules {
-    to {
-      # MA egress screens BOTH regional and global endpoint requests.
-      #
-      # FIX (2026-11-18): The suffix rules alone never matched the GLOBAL
-      # endpoint "aiplatform.googleapis.com" (no prefix before "aiplatform"),
-      # which is where Gemini 3.x calls go (GOOGLE_CLOUD_LOCATION=global).
-      # Gateway logs showed 0 MA evaluations on 1,000+ egress requests.
-      # Added exact matches for the global host and its mTLS rewrite.
-      #
-      # HISTORY: Originally excluded global endpoint ("aiplatform.googleapis.com")
-      # because MA extension returned PERMISSION_DENIED. Root cause was the
-      # Agent Gateway SA (gcp-sa-agentgateway) missing roles/modelarmor.calloutUser
-      # and roles/modelarmor.user — NOT a real MA/global incompatibility.
-      # Fixed 2026-09-30 by granting 3 IAM roles to the gateway SA.
-      #
-      # KEY DISCOVERY: The Agent Gateway TLS-intercepts egress and rewrites
-      # hostnames to *.mtls.googleapis.com (e.g., us-central1-aiplatform.googleapis.com
-      # → us-central1-aiplatform.mtls.googleapis.com). httpRules MUST include both
-      # the standard AND .mtls. hostname variants, or the policy won't match traffic
-      # and will show "allowed_as_no_custom_policies_matched_request" in gateway logs.
-      #
-      # See: skills/vertex-ai-global-endpoint-adk/SKILL.md §5 for original diagnosis.
-      operations {
-        # Regional endpoints (e.g. us-central1-aiplatform.googleapis.com)
-        hosts { suffix = ".aiplatform.googleapis.com" }
-        # mTLS rewrites of regional endpoints
-        hosts { suffix = ".aiplatform.mtls.googleapis.com" }
-        # Global endpoint (Gemini 3.x — GOOGLE_CLOUD_LOCATION=global)
-        hosts { exact = "aiplatform.googleapis.com" }
-        hosts { exact = "aiplatform.mtls.googleapis.com" }
-        paths {
-          contains    = "generatecontent"
-          ignore_case = true
-        }
-        paths {
-          contains    = "predict"
-          ignore_case = true
-        }
-        paths {
-          contains    = "streamquery"
-          ignore_case = true
-        }
-        # NOTE: "sessions" and "events" paths REMOVED from MA egress screening.
-        # Session management and event APIs are not LLM inference calls, so
-        # Model Armor cannot parse them. Sending session create/list requests
-        # through MA produces a 500 with empty message body, breaking the
-        # entire agent query flow. Only LLM content paths should be screened.
-      }
-    }
-  }
+  # CONTENT_AUTHZ httpRules removed (2026-11-19).
+  #
+  # ROOT CAUSE: Egress requests travel through CONNECT tunnels where the HTTP
+  # path is not visible to the gateway's authz policy matcher. When httpRules
+  # specified both host AND path conditions (e.g. contains="generatecontent"),
+  # the path condition could never match → the entire rule failed → MA egress
+  # extension was NEVER invoked on ANY request (confirmed via gateway logs:
+  # 0 MA evaluations, all entries showed "allowed_as_no_custom_policies_matched_request").
+  #
+  # Without httpRules, the CONTENT_AUTHZ policy matches ALL egress traffic through
+  # this gateway and routes it to the MA extension for screening. The MA extension
+  # itself determines what to screen (via request_template_id) — it correctly
+  # handles non-LLM content (session APIs, etc.) by passing them through when
+  # they don't match its template patterns. This is safe because:
+  #   1. MA extension has fail_open = true (won't block on parsing errors)
+  #   2. MA only screens request bodies that look like LLM prompts
+  #   3. Session/event API calls pass through MA without triggering content filters
+  #
+  # HISTORY: httpRules with path conditions were originally added to scope MA to
+  # only LLM paths (generatecontent, predict, streamquery). This was correct
+  # conceptually but technically impossible because CONNECT tunnels hide the path.
+  # The SGP egress policy (which has no httpRules) confirmed this — it successfully
+  # matched all egress traffic while MA (with httpRules) matched zero.
 }
 
 
@@ -336,47 +308,16 @@ resource "google_network_security_authz_policy" "egress_sgp_policy" {
     }
   }
 
-  # SGP httpRules — scope the extension to LLM inference egress traffic only.
-  #
-  # KEY DISCOVERY: The Agent Gateway TLS-intercepts egress and rewrites
-  # hostnames to *.mtls.googleapis.com (e.g., us-central1-aiplatform.googleapis.com
-  # → us-central1-aiplatform.mtls.googleapis.com). httpRules MUST include both
-  # the standard AND .mtls. hostname variants, or the policy won't match traffic
-  # and will show "allowed_as_no_custom_policies_matched_request" in gateway logs.
+  # CONTENT_AUTHZ httpRules removed (2026-11-19) — same root cause as MA egress:
+  # egress CONNECT tunnels don't expose HTTP paths, so path conditions never match.
+  # Without httpRules, the policy matches all egress traffic. SGP's fail_open=true
+  # ensures non-LLM requests pass through safely.
   #
   # NOTE: SGP is a TOOL-CALL GOVERNANCE layer — it evaluates agent actions
   # (function_call) on egress, NOT user prompts. For text-only responses
   # (no tool call), SGP has nothing to evaluate and passes through.
   # Off-topic PROMPT blocking is handled by Model Armor on ingress and/or
   # agent system instructions.
-  http_rules {
-    to {
-      operations {
-        # Standard hostnames
-        hosts { suffix = ".aiplatform.googleapis.com" }
-        hosts { suffix = "-aiplatform.googleapis.com" }
-        hosts { suffix = "aiplatform.googleapis.com" }
-        # mTLS hostnames (Agent Gateway rewrites to these on egress)
-        hosts { suffix = ".aiplatform.mtls.googleapis.com" }
-        hosts { suffix = "-aiplatform.mtls.googleapis.com" }
-        hosts { suffix = "aiplatform.mtls.googleapis.com" }
-        # LLM content paths only — NOT sessions/events (SGP can't parse those).
-        # Matches the MA egress httpRules pattern — only LLM inference paths.
-        paths {
-          contains    = "generatecontent"
-          ignore_case = true
-        }
-        paths {
-          contains    = "query"
-          ignore_case = true
-        }
-        paths {
-          contains    = "streamquery"
-          ignore_case = true
-        }
-      }
-    }
-  }
 
   # Serialize egress policy creates — all three target the same gateway and
   # update its tenant config. Concurrent creates race and produce Error code 10
