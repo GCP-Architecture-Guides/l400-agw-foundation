@@ -1219,12 +1219,9 @@ These changes have already been applied to the repo. If you're starting fresh fr
   subnetworks = [google_compute_subnetwork.sgp_subnet.id]
 ```
 
-### 3. `03_security_and_gateways.tf` — Sessions/events removed from MA egress (line ~261)
-```hcl
-        # NOTE: "sessions" and "events" paths REMOVED from MA egress screening.
-        # These paths match Vertex AI session management API calls, which Model
-        # Armor cannot parse, causing 500 empty message errors.
-```
+### 3. `03_security_and_gateways.tf` — Sessions/events removed from MA egress *(superseded by §7)*
+> **Note:** This intermediate fix (removing specific path patterns) was superseded when ALL `httpRules` were removed in §7.
+> The session/event path comments no longer appear in the file.
 
 ### 4. `scripts/create_sgp_policy.sh` — `--display-name` flag added (line ~230)
 ```bash
@@ -1245,24 +1242,12 @@ resource "google_network_services_authz_extension" "sgp_extension" {
 }
 ```
 
-### 6. `03_security_and_gateways.tf` — SGP egress policy `http_rules` with `.mtls.` hostnames
-```hcl
-resource "google_network_security_authz_policy" "egress_sgp_policy" {
-  # ...
-  # KEY DISCOVERY: Agent Gateway TLS-intercepts egress and rewrites hostnames
-  # to *.mtls.googleapis.com. httpRules MUST include both standard AND .mtls.
-  # variants, or the policy won't match traffic.
-  http_rules {
-    to {
-      operations {
-        hosts { suffix = ".aiplatform.googleapis.com" }
-        hosts { suffix = ".aiplatform.mtls.googleapis.com" }  # ← REQUIRED for matching
-        # ... paths: generatecontent, query, streamquery
-      }
-    }
-  }
-}
-```
+### 6. `03_security_and_gateways.tf` — `.mtls.` hostname discovery *(superseded by §7)*
+> **Historical context:** We discovered that Agent Gateway TLS-intercepts egress and rewrites
+> hostnames to `*.mtls.googleapis.com`. This meant `httpRules` host patterns needed both
+> standard AND `.mtls.` variants. However, we later discovered that ALL `httpRules` must
+> be removed (see §7) because CONNECT tunnels hide the HTTP path entirely, so no
+> host+path rule can ever match. This section is kept for reference only.
 
 ### 7. `03_security_and_gateways.tf` — MA & SGP egress policies: `httpRules` removed
 ```hcl
