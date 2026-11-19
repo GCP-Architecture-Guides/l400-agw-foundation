@@ -200,7 +200,7 @@ resource "google_compute_network_attachment" "sgp_network_attachment" {
   # The SGP PSC endpoint (forwarding rule + static IP) lives on sgp_subnet,
   # so the network attachment must also use sgp_subnet for the PSC plumbing
   # to route correctly to the SGP engine service attachment.
-  subnetworks           = [google_compute_subnetwork.sgp_subnet.id]
+  subnetworks = [google_compute_subnetwork.sgp_subnet.id]
 
   depends_on = [google_project_service.compute]
 }

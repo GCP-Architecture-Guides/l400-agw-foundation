@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # =============================================================================
-# discover_lab1_resources.sh — Auto-discover Lab 1 deployed resources
+# discover_lab5_resources.sh — Auto-discover Lab 5 deployed resources
 #
 # Discovers Reasoning Engines, Cloud Run services, and service accounts
-# deployed during Lab 1 (Aegis TrialShield agent mesh).
+# deployed during Lab 5 (Aegis TrialShield agent mesh).
 #
 # Usage:
-#   ./scripts/discover_lab1_resources.sh --project YOUR_PROJECT_ID [--region us-central1]
+#   ./scripts/discover_lab5_resources.sh --project YOUR_PROJECT_ID [--region us-central1]
 #
 # Outputs:
-#   - lab1_resources.json  (machine-readable summary)
+#   - lab5_resources.json  (machine-readable summary)
 #   - Human-readable table to stdout
 #
 # Exit codes:
@@ -29,7 +29,7 @@ NC='\033[0m' # No Color
 # ── Defaults ─────────────────────────────────────────────────────────────────
 PROJECT_ID=""
 REGION="us-central1"
-OUTPUT_FILE="lab1_resources.json"
+OUTPUT_FILE="lab5_resources.json"
 
 # ── Expected resources ───────────────────────────────────────────────────────
 RE_DISPLAY_NAME="trial_matching_supervisor"
@@ -42,7 +42,7 @@ usage() {
   echo ""
   echo "  --project   GCP project ID (required)"
   echo "  --region    GCP region (default: us-central1)"
-  echo "  --output    Output JSON file (default: lab1_resources.json)"
+  echo "  --output    Output JSON file (default: lab5_resources.json)"
   exit 1
 }
 
@@ -62,7 +62,7 @@ if [[ -z "$PROJECT_ID" ]]; then
 fi
 
 echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${CYAN}  Lab 1 Resource Discovery — Aegis TrialShield${NC}"
+echo -e "${BOLD}${CYAN}  Lab 5 Resource Discovery — Aegis TrialShield${NC}"
 echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  Project:  ${BOLD}${PROJECT_ID}${NC}"
@@ -358,7 +358,7 @@ echo ""
 # 5. Human-readable summary table
 # =============================================================================
 echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${CYAN}  Lab 1 Resource Discovery Summary${NC}"
+echo -e "${BOLD}${CYAN}  Lab 5 Resource Discovery Summary${NC}"
 echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════════════════${NC}"
 echo ""
 printf "  ${BOLD}%-20s %-30s %-15s${NC}\n" "Resource Type" "Name / ID" "Status"
@@ -395,12 +395,12 @@ echo ""
 printf "  %-20s %-30s\n" "────────────────────" "──────────────────────────────"
 
 if [[ $ERRORS -eq 0 ]]; then
-  echo -e "  ${GREEN}${BOLD}All Lab 1 resources discovered and healthy ✅${NC}"
+  echo -e "  ${GREEN}${BOLD}All Lab 5 resources discovered and healthy ✅${NC}"
   echo -e "  Output: ${OUTPUT_FILE}"
   echo ""
   exit 0
 else
-  echo -e "  ${RED}${BOLD}${ERRORS} issue(s) found — Lab 1 may not be fully deployed ❌${NC}"
+  echo -e "  ${RED}${BOLD}${ERRORS} issue(s) found — Lab 5 may not be fully deployed ❌${NC}"
   echo -e "  Output: ${OUTPUT_FILE}"
   echo ""
   exit 1
