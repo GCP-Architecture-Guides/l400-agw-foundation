@@ -484,7 +484,7 @@ Steps:
 Known issues that are ALREADY FIXED in the codebase:
 - iamconnectors.googleapis.com is commented out in 01_apis.tf (Permission Denied)
 - network_config dns_peering_config is commented out in 02_network.tf (validation failure)
-- MA egress http_rules do NOT include "sessions" or "events" paths (would break session API)
+- MA & SGP egress policies have NO httpRules (CONNECT tunnels hide HTTP paths — see Code Changes §7)
 ```
 
 ### Verification

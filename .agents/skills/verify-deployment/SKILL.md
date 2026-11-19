@@ -85,10 +85,10 @@ Lab 6 builds upon Lab 5's deployed resources. The student must have:
 2. **Step 2 — Model Armor & DLP (25 pts)**
    - **2.1 Model Armor Template (10 pts)**: Verifies `security-high` Model Armor template exists in `us-central1` with PI/Jailbreak filter `ENABLED` at `HIGH` confidence, malicious URI filter `ENABLED`, and RAI filters configured.
    - **2.2 DLP Templates (8 pts)**: Verifies `identification-template` (inspect) and `deidentify-replace-with-infotype` (deidentify) DLP templates exist with SSN, credit card, email, GCP credentials, and medical info types.
-   - **2.3 Ingress & Egress MA Extensions (7 pts)**: Verifies MA ingress extension (`fail_open=false`) and MA egress extension (`fail_open=true`) exist and are bound to their respective gateways via CONTENT_AUTHZ policies. Verifies egress MA policy has `httpRules` with both `.aiplatform.googleapis.com` AND `.aiplatform.mtls.googleapis.com` suffix variants.
+   - **2.3 Ingress & Egress MA Extensions (7 pts)**: Verifies MA ingress extension (`fail_open=false`) and MA egress extension (`fail_open=true`) exist and are bound to their respective gateways via CONTENT_AUTHZ policies. Verifies egress MA policy uses CONTENT_AUTHZ with no `httpRules` (matches all egress traffic — httpRules removed because CONNECT tunnels hide HTTP paths).
 
 3. **Step 3 — SGP & IAP Extensions (25 pts)**
-   - **3.1 SGP Extension & Policy (10 pts)**: Verifies SGP authz extension exists with `service = sgp.internal.gemini-corp`, `timeout = 10s`, `fail_open = true`, and is bound to egress gateway via CONTENT_AUTHZ policy with `httpRules` including `.mtls.` hostname variants.
+   - **3.1 SGP Extension & Policy (10 pts)**: Verifies SGP authz extension exists with `service = sgp.internal.gemini-corp`, `timeout = 10s`, `fail_open = true`, and is bound to egress gateway via CONTENT_AUTHZ policy with no `httpRules` (matches all egress traffic).
    - **3.2 SGP PSC Connectivity (8 pts)**: Verifies SGP network attachment (using `sgp_subnet`), PSC static IP, PSC forwarding rule (target = SGP engine service attachment), private DNS zone (`sgp.internal.gemini-corp.`), and A record pointing to PSC IP.
    - **3.3 IAP Extensions & Policies (7 pts)**: Verifies IAP ingress extension (`fail_open=false`, REQUEST_AUTHZ) and IAP egress extension (`fail_open=true`, `iamEnforcementMode=DRY_RUN`, REQUEST_AUTHZ) exist and are bound to their respective gateways.
 
@@ -132,7 +132,7 @@ Lab 6 builds upon Lab 5's deployed resources. The student must have:
    - **2.3 NLC Constraint Contains Domain Rules (10 pts)**: Verifies `naturalLanguageConstraint` contains oncology clinical trial domain keywords matching `sgp_nlc_constraint` from `terraform.tfvars`.
 
 3. **Step 3 — SGP Domain Quick Check (30 pts)**
-   - **3.1 On-Topic Tool Call Allowed (15 pts)**: Sends a legitimate clinical screening prompt and verifies the agent invokes `screen_patient_monolithic` (or equivalent) — SGP evaluates the tool call and ALLOWs it.
+   - **3.1 On-Topic Tool Call Allowed (15 pts)**: Sends a legitimate clinical screening prompt and verifies the agent invokes `screen_patient` (or equivalent) — SGP evaluates the tool call and ALLOWs it.
    - **3.2 SGP Telemetry in Gateway Logs (15 pts)**: Queries Cloud Logging for `resource.type="networkservices.googleapis.com/AgentGateway"` with SGP extension evaluation entries showing `grpcStatus: OK` and policy name in the decision.
 
 #### `goal-6-red-team-gauntlet` — **Goal 6: Execute Red Team Security Gauntlet (100 Points Total)**
