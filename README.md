@@ -445,7 +445,7 @@ Terraform reads `terraform.tfvars` and creates approximately **99 GCP resources*
 > [!WARNING]
 > **Known Issues During `terraform apply`:**
 >
-> 1. **`iamconnectors.googleapis.com` — Permission Denied.** This API is not available in all projects. The resource is already commented out in `01_apis.tf` (lines 96-99). If you hit this, verify it's commented out.
+> 1. **`iamconnectors.googleapis.com` — Permission Denied.** This API is not available in all projects. The resource is already commented out in `01_apis.tf` (line 96). If you hit this, verify it's commented out.
 >
 > 2. **Egress Gateway `network_config` — commented out.** The `network_config` block (PSC network attachment + DNS peering) is commented out in `02_network.tf` because aiohttp sends IP-literal CONNECT requests that SWP can't match, causing all egress to hit `default_denied`. Egress content screening works via CONTENT_AUTHZ policies without network-level capture. See Code Changes §9.
 >
@@ -1185,7 +1185,7 @@ meets the eligibility criteria for trial NCT-AEGIS-001.
 | **MA egress never invoked** | CONTENT_AUTHZ `httpRules` with path conditions (generatecontent, predict) never match because egress CONNECT tunnels don't expose HTTP paths | Already fixed: `httpRules` removed from both MA and SGP egress policies. Extensions now match all egress traffic. |
 | **SGP "Agent not configured with valid RuntimeIdentity"** | RE deployed without `identityType=AGENT_IDENTITY` | Redeploy RE in Lab 5 with `identityType=AGENT_IDENTITY` set at creation time. |
 | **Agent Registry name mismatch** | SGP script reads `agent_name` from tfvars — must match RE displayName | Ensure Lab 5 RE `displayName` matches `agent_name` in `terraform.tfvars` (both should be `trial_matching_supervisor`). |
-| **`iamconnectors.googleapis.com` Permission Denied** | API not available in all projects | Already commented out in `01_apis.tf` (lines 96-99). |
+| **`iamconnectors.googleapis.com` Permission Denied** | API not available in all projects | Already commented out in `01_apis.tf` (line 96). |
 | **Egress Gateway `network_config` validation failure** | `dns_peering_config` block fails API validation | Commented out in `02_network.tf` (lines 169-178) due to aiohttp IP-literal CONNECT issue. See Code Changes §9. |
 | **Terraform `terraform init` fails with stale state** | Module paths changed after restructuring | Run `terraform init -reconfigure`. |
 | **SGP egress blocks ALL outbound traffic** | SGP extension `fail_open=false` (default) blocks session API, A2A calls, and other non-LLM requests that SGP can't parse semantically | Set SGP extension `fail_open = true` in `03_security_and_gateways.tf`. `httpRules` removed — SGP handles non-LLM traffic safely via fail-open. |
@@ -1203,7 +1203,7 @@ meets the eligibility criteria for trial NCT-AEGIS-001.
 
 These changes have already been applied to the repo. If you're starting fresh from a clone, verify they're present:
 
-### 1. `01_apis.tf` — `iamconnectors` commented out (lines 96-99)
+### 1. `01_apis.tf` — `iamconnectors` commented out (line 96)
 ```hcl
 # NOTE: iamconnectors.googleapis.com is not available in all projects.
 # Commented out to prevent Permission Denied errors.
@@ -1243,9 +1243,9 @@ resource "google_network_services_authz_extension" "sgp_extension" {
 ```
 
 ### 6. `03_security_and_gateways.tf` — `.mtls.` hostname discovery *(superseded by §7)*
-> **Historical context:** We discovered that Agent Gateway TLS-intercepts egress and rewrites
+> **Historical context:** Agent Gateway TLS-intercepts egress and rewrites
 > hostnames to `*.mtls.googleapis.com`. This meant `httpRules` host patterns needed both
-> standard AND `.mtls.` variants. However, we later discovered that ALL `httpRules` must
+> standard AND `.mtls.` variants. However, ALL `httpRules` must
 > be removed (see §7) because CONNECT tunnels hide the HTTP path entirely, so no
 > host+path rule can ever match. This section is kept for reference only.
 
